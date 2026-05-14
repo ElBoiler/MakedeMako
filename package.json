@@ -1,0 +1,18 @@
+{
+  "name": "formularis-ausfuellio",
+  "version": "0.1.0",
+  "description": "Chrome extension generating MaKo document bundles for Advizeo Deutschland",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/",
+    "copy-vendor": "node scripts/copy-vendor.mjs"
+  },
+  "devDependencies": {
+    "docxtemplater": "^3.50.0",
+    "pizzip": "^3.1.7",
+    "pdf-lib": "^1.17.1",
+    "exceljs": "^4.4.0",
+    "mailparser": "^3.7.1"
+  }
+}
