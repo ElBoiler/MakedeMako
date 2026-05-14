@@ -3,6 +3,7 @@ import { validate } from './validate.js';
 import { renderStepNav } from './ui/render.js';
 import { renderStep1, wireStep1 } from './ui/step1.js';
 import { renderStep2 } from './ui/step2.js';
+import { renderStep3, wireStep3 } from './ui/step3.js';
 
 const state = await loadState(chrome.storage);
 const stepBody = document.getElementById('stepBody');
@@ -55,13 +56,14 @@ function rerender() {
   renderStepNav(state.step, errorsByStep(errors));
   stepBody.replaceChildren(rendererFor(state.step)(state, errors, ops));
   if (state.step === 1) wireStep1(stepBody, ops.change);
+  if (state.step === 3) wireStep3(stepBody, ops.change);
   updateFooter(errors);
 }
 
 function rendererFor(step) {
   if (step === 1) return renderStep1;
   if (step === 2) return renderStep2;
-  return () => document.createTextNode('Schritt 3 — folgt in Task 16.');
+  return renderStep3;
 }
 
 function updateFooter(errors) {
