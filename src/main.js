@@ -1,4 +1,4 @@
-const ok = ['PizZip', 'docxtemplater', 'PDFLib', 'ExcelJS']
-  .map(name => `${name}: ${typeof globalThis[name] !== 'undefined' ? 'OK' : 'MISSING'}`)
-  .join('<br>');
-document.getElementById('app').innerHTML = `<pre>${ok}</pre>`;
+import { renderStepNav } from './ui/render.js';
+
+document.getElementById('stepBody').innerHTML = '<p>Schritt 1 — folgt in Task 14.</p>';
+renderStepNav(1, {});

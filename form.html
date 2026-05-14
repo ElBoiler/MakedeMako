@@ -6,7 +6,28 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main id="app"><p>Lade…</p></main>
+  <header class="header">
+    <h1>MaKo Dokumente erstellen</h1>
+    <button id="resetBtn" class="ghost">Zurücksetzen</button>
+  </header>
+  <div class="layout">
+    <nav class="sidebar">
+      <ol id="stepNav">
+        <li data-step="1"><span class="stepNum">1</span> Stammdaten &amp; MSB</li>
+        <li data-step="2"><span class="stepNum">2</span> Messpunkte</li>
+        <li data-step="3"><span class="stepNum">3</span> Zeitraum &amp; Vorschau</li>
+      </ol>
+    </nav>
+    <main id="stepBody" class="step-body"></main>
+  </div>
+  <footer class="footer">
+    <button id="backBtn"     class="secondary">Zurück</button>
+    <button id="nextBtn"     class="primary">Weiter</button>
+    <button id="generateBtn" class="primary" hidden>Generieren</button>
+  </footer>
+
+  <div id="modalRoot"></div>
+
   <script src="vendor/pizzip.js"></script>
   <script src="vendor/docxtemplater.js"></script>
   <script src="vendor/pdf-lib.min.js"></script>
