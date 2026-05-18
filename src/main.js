@@ -61,11 +61,26 @@ const ops = {
 
 function rerender() {
   const errors = validate(state);
+
+  const focusId = document.activeElement?.id;
+  const selStart = document.activeElement?.selectionStart ?? null;
+  const selEnd   = document.activeElement?.selectionEnd   ?? null;
+
   renderStepNav(state.step, errorsByStep(errors));
   stepBody.replaceChildren(rendererFor(state.step)(state, errors, ops));
   if (state.step === 1) wireStep1(stepBody, ops.change);
   if (state.step === 3) wireStep3(stepBody, ops.change);
   updateFooter(errors);
+
+  if (focusId) {
+    const target = stepBody.querySelector('#' + CSS.escape(focusId));
+    if (target) {
+      target.focus();
+      if (selStart !== null && target.setSelectionRange) {
+        try { target.setSelectionRange(selStart, selEnd); } catch (_) {}
+      }
+    }
+  }
 }
 
 function rendererFor(step) {
