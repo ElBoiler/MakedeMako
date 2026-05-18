@@ -6,7 +6,10 @@
   "description": "Generiert MaKo-Dokumente (Einwilligungserklärung, Kontaktdatenblatt, MSB-Anfrage) für Advizeo.",
   "default_locale": "de",
   "permissions": ["downloads", "storage"],
-  "host_permissions": ["https://bdew-codes.de/*"],
+  "host_permissions": [
+    "https://bdew-codes.de/*",
+    "https://nominatim.openstreetmap.org/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
