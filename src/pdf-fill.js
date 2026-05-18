@@ -17,16 +17,16 @@ function getPDFString() {
 }
 
 const SCALARS = [
-  'OBJEKT_ADRESSE', 'ANSCHLUSSNUTZER_NAME', 'ANSCHLUSSNUTZER_ADRESSE',
+  'ANSCHLUSSNUTZER_NAME', 'ANSCHLUSSNUTZER_ADRESSE',
   'MSB_NAME', 'MSB_CODE_NR', 'ESA_NAME', 'ESA_MARKTPARTNER_ID',
   'BEGINN_DATUM', 'ENDE_DATUM',
 ];
-const MP_SUFFIXES = ['TYP', 'ID', 'RICHTUNG', 'MESSPRODUKT'];
+const MP_SUFFIXES = ['CODE', 'BEZEICHNUNG'];
 const MAX_ROWS = 10;
 
 export async function fillPdf(templateBytes, data) {
-  if ((data.MESSPUNKTE?.length ?? 0) > MAX_ROWS) {
-    throw new Error(`Max ${MAX_ROWS} Messpunkte im PDF`);
+  if ((data.MESSPRODUKTEN?.length ?? 0) > MAX_ROWS) {
+    throw new Error(`Max ${MAX_ROWS} Messprodukte im PDF`);
   }
   const PDFDocument = getPDFDocument();
   const pdf = await PDFDocument.load(templateBytes);
@@ -37,7 +37,7 @@ export async function fillPdf(templateBytes, data) {
     setText(form, name, String(value));
   }
 
-  const rows = data.MESSPUNKTE ?? [];
+  const rows = data.MESSPRODUKTEN ?? [];
   for (let i = 0; i < MAX_ROWS; i++) {
     const row = rows[i] ?? null;
     for (const suffix of MP_SUFFIXES) {

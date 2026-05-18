@@ -14,6 +14,7 @@ export function renderStep3(state, errors, ops) {
   const filesList = [
     `${filename}.docx`,
     `${filename}.pdf`,
+    `Anlage_Messlokationen_${slug(state.anschlussnutzer.name)}.xlsx`,
     ...(isNewMsb ? [
       'Kontaktdatenblatt.xlsx',
       `MSB-Anfrage_${slug(state.msb.name)}.eml`,

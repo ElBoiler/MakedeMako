@@ -10,7 +10,7 @@ import { fillXlsx } from './xlsx-fill.js';
 import { fillAnlage } from './anlage-fill.js';
 import { buildEml } from './eml-build.js';
 import { downloadBundle } from './download.js';
-import { messprodukt } from './messprodukt.js';
+import { messprodukt, BEZEICHNUNG } from './messprodukt.js';
 import { SUBJECT, BODY_LINES } from './email-template.js';
 import { slug } from './slug.js';
 
@@ -28,6 +28,7 @@ function scheduleRerender() {
   clearTimeout(_rerenderTimer);
   _rerenderTimer = setTimeout(rerender, 150);
 }
+
 const backBtn = document.getElementById('backBtn');
 const nextBtn = document.getElementById('nextBtn');
 const generateBtn = document.getElementById('generateBtn');
@@ -143,6 +144,18 @@ function germanDate(iso) {
 }
 
 function toTemplateData(s) {
+  // Deduplicate Messprodukte by code for the PDF consent form
+  const seen = new Set();
+  const messprodukten = [];
+  for (const row of s.messpunkte) {
+    if (!row.id) continue;
+    const code = messprodukt(row.kind, row.richtung);
+    if (!seen.has(code)) {
+      seen.add(code);
+      messprodukten.push({ CODE: code, BEZEICHNUNG: BEZEICHNUNG[code] ?? '' });
+    }
+  }
+
   return {
     OBJEKT_ADRESSE:          s.objekt.adresse,
     ANSCHLUSSNUTZER_NAME:    s.anschlussnutzer.name,
@@ -159,6 +172,7 @@ function toTemplateData(s) {
       RICHTUNG: row.richtung,
       MESSPRODUKT: messprodukt(row.kind, row.richtung),
     })),
+    MESSPRODUKTEN: messprodukten,
   };
 }
 
