@@ -65,6 +65,8 @@ const ops = {
   },
 };
 
+let _wireAbort = null;
+
 function rerender() {
   const errors = validate(state);
 
@@ -72,10 +74,14 @@ function rerender() {
   const selStart = document.activeElement?.selectionStart ?? null;
   const selEnd   = document.activeElement?.selectionEnd   ?? null;
 
+  _wireAbort?.abort();
+  _wireAbort = new AbortController();
+  const { signal } = _wireAbort;
+
   renderStepNav(state.step, errorsByStep(errors));
   stepBody.replaceChildren(rendererFor(state.step)(state, errors, ops));
-  if (state.step === 1) wireStep1(stepBody, ops.change);
-  if (state.step === 3) wireStep3(stepBody, ops.change);
+  if (state.step === 1) wireStep1(stepBody, ops.change, signal);
+  if (state.step === 3) wireStep3(stepBody, ops.change, signal);
   updateFooter(errors);
 
   if (focusId) {

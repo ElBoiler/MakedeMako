@@ -51,9 +51,9 @@ export function renderStep3(state, errors, ops) {
   );
 }
 
-export function wireStep3(root, onChange) {
+export function wireStep3(root, onChange, signal) {
   root.addEventListener('input', e => {
     const t = e.target;
     if (t.id === 'beginnDatum') onChange('beginnDatum', t.value);
-  });
+  }, { signal });
 }

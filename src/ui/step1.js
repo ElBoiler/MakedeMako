@@ -37,16 +37,16 @@ export function renderStep1(state, errors, onChange) {
   );
 }
 
-export function wireStep1(root, onChange) {
+export function wireStep1(root, onChange, signal) {
   root.addEventListener('input', e => {
     const t = e.target;
     if (!t.id) return;
     onChange(t.id, t.value);
-  });
+  }, { signal });
   root.addEventListener('change', e => {
     const t = e.target;
     if (t.type === 'radio' && t.name === 'msb.knownToAdvizeo') {
       onChange('msb.knownToAdvizeo', t.value === 'true');
     }
-  });
+  }, { signal });
 }
