@@ -7,6 +7,7 @@ import { renderStep3, wireStep3 } from './ui/step3.js';
 import { fillDocx } from './docx-fill.js';
 import { fillPdf } from './pdf-fill.js';
 import { fillXlsx } from './xlsx-fill.js';
+import { fillAnlage } from './anlage-fill.js';
 import { buildEml } from './eml-build.js';
 import { downloadBundle } from './download.js';
 import { messprodukt } from './messprodukt.js';
@@ -179,28 +180,36 @@ async function generate() {
   const fileBase = `Einwilligungserklaerung_${slug(state.anschlussnutzer.name)}`;
   const files = [];
 
+  const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
   try {
+    // Word doc (official BDEW form, no template tags → downloaded as-is)
     const docxTpl = await fetchTemplate('templates/einwilligungserklaerung.docx');
     const docxBytes = fillDocx(docxTpl, data);
-    files.push({ name: `${fileBase}.docx`, bytes: docxBytes,
-                 mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    files.push({ name: `${fileBase}.docx`, bytes: docxBytes, mime: DOCX_MIME });
 
+    // Fillable PDF (AcroForm fields filled with state data)
     const pdfTpl = await fetchTemplate('templates/einwilligungserklaerung.pdf');
     const pdfBytes = await fillPdf(pdfTpl, data);
     files.push({ name: `${fileBase}.pdf`, bytes: pdfBytes, mime: 'application/pdf' });
 
+    // Anlage (Messlokationen list) — always included
+    const anlageTpl = await fetchTemplate('templates/anlage-messlokationen.xlsx');
+    const anlageBytes = new Uint8Array(await fillAnlage(anlageTpl, data));
+    files.push({ name: `Anlage_Messlokationen_${slug(state.anschlussnutzer.name)}.xlsx`, bytes: anlageBytes, mime: XLSX_MIME });
+
     if (state.msb.knownToAdvizeo === false) {
       const xlsxTpl = await fetchTemplate('templates/kontaktdatenblatt.xlsx');
       const xlsxBytes = new Uint8Array(await fillXlsx(xlsxTpl, data));
-      files.push({ name: 'Kontaktdatenblatt.xlsx', bytes: xlsxBytes,
-                   mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      files.push({ name: 'Kontaktdatenblatt.xlsx', bytes: xlsxBytes, mime: XLSX_MIME });
 
       const eml = buildEml({
         subject: SUBJECT,
         bodyLines: BODY_LINES,
         headers: { 'X-Unsent': '1' },
         attachments: [
-          { name: 'Kontaktdatenblatt.xlsx', contentType: files[2].mime, bytes: xlsxBytes },
+          { name: 'Kontaktdatenblatt.xlsx', contentType: XLSX_MIME, bytes: xlsxBytes },
           { name: `${fileBase}.pdf`,        contentType: 'application/pdf', bytes: pdfBytes },
         ],
       });
