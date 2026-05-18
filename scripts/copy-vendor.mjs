@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const copies = [
-  ['node_modules/pizzip/dist/pizzip.js',                     'vendor/pizzip.js'],
+  ['node_modules/pizzip/dist/pizzip.min.js',                 'vendor/pizzip.js'],
   ['node_modules/docxtemplater/build/docxtemplater.js',      'vendor/docxtemplater.js'],
   ['node_modules/pdf-lib/dist/pdf-lib.min.js',               'vendor/pdf-lib.min.js'],
   ['node_modules/exceljs/dist/exceljs.min.js',               'vendor/exceljs.min.js'],
