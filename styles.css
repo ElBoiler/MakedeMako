@@ -70,18 +70,23 @@ table.mp th, table.mp td { padding: 8px; border-bottom: 1px solid var(--border);
 .modal h3 { margin-top: 0; }
 .modal details { margin-top: 12px; }
 .autocomplete-wrap { position: relative; max-width: 480px; }
-.autocomplete-wrap input { width: 100%; }
+.autocomplete-wrap input,
+.autocomplete-wrap textarea { width: 100%; }
 .autocomplete-drop {
   display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 20;
   margin: 2px 0 0; padding: 0; list-style: none;
   background: white; border: 1px solid var(--border); border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.10); max-height: 240px; overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12); max-height: 260px; overflow-y: auto;
 }
-.autocomplete-drop:not([hidden]) { display: block; }
+.autocomplete-drop.is-open { display: block; }
 .autocomplete-drop li {
+  display: flex; flex-direction: column; gap: 1px;
   padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border);
-  font-size: 13px;
 }
 .autocomplete-drop li:last-child { border-bottom: none; }
 .autocomplete-drop li:hover,
-.autocomplete-drop li:focus { background: rgba(224, 91, 56, 0.08); outline: none; }
+.autocomplete-drop li:focus    { background: rgba(224, 91, 56, 0.08); outline: none; }
+.autocomplete-drop li[role="option"]:focus { background: rgba(224, 91, 56, 0.14); }
+.ac-label   { font-size: 13px; color: var(--fg); }
+.ac-sublabel { font-size: 11px; color: var(--muted); }
+.ac-status  { font-size: 12px; color: var(--muted); padding: 8px 12px; }
