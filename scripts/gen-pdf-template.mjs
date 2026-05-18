@@ -2,8 +2,13 @@
  * Generates templates/einwilligungserklaerung.pdf
  * Run: node scripts/gen-pdf-template.mjs
  *
- * Matches the official BDEW Einwilligungserklärung (BK6-22-024 / BK6-24-174).
- * A4, Helvetica 10.5 pt, blue (#79C8FF) section headers, two pages.
+ * Exact match to the BDEW Word doc layout.
+ * A4: 595.28×841.89pt
+ * Margins: top/left/right = 70.9pt (1418 twips), bottom = 56.7pt (1134 twips)
+ * Standard tables (Anschlussnutzer, Zeitraum, Messprodukten):
+ *   x = 77.75pt (ML + 6.85pt indent), w = 439.5pt (8789 dxa)
+ * ESA/MSB tables:
+ *   x = 70.9pt (no indent), w = 446.6pt (8931 dxa), left sidebar = 8pt
  */
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { writeFileSync } from 'node:fs';
@@ -13,30 +18,57 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT  = resolve(ROOT, 'templates/einwilligungserklaerung.pdf');
 
-const W = 595.28, H = 841.89, M = 71;   // A4, 71 pt margins
-const PW = W - 2 * M;                    // 453.28 pt content width
-const SW = 8;                            // sidebar width for ESA / MSB
-const CW = PW - SW;                      // content inside sidebar: 445.28 pt
+// ── Page & margin constants ────────────────────────────────────────────────────
+const W = 595.28, H = 841.89;
+const ML = 70.9, MT = 70.9, MB = 56.7;   // left/top/bottom margins
 
-// ── Colours ──────────────────────────────────────────────────────────────────
-const BLACK   = rgb(0,     0,     0    );
-const DARK_BG = rgb(0.161, 0.161, 0.161); // #292929 — consent box background
-const BLUE    = rgb(0.475, 0.784, 1.0  ); // #79C8FF — section headers / sidebar
-const FLD_BG  = rgb(0.94,  0.94,  0.94 ); // input field background
-const EVEN_BG = rgb(0.92,  0.92,  0.92 ); // alternating row in MP table
-const BRD     = rgb(0.67,  0.67,  0.67 ); // border / rule colour
-const WHITE   = rgb(1,     1,     1    );
+// Standard table geometry (8789 dxa, indent 137 dxa)
+const TX = ML + 6.85;   // 77.75pt table x-origin
+const TW = 439.5;        // table width
 
-// ── Sizes & row heights ───────────────────────────────────────────────────────
-const SZ   = 10.5;   // standard text size (matches Word doc sz=21 = 10.5 pt)
-const SZ_B = 11;     // consent / legal section text (Word sz=22 = 11 pt)
+// ESA/MSB table geometry (8931 dxa, no indent)
+const SX = ML;           // 70.9pt
+const SW = 446.6;        // sidebar-table width
+const SB  = 8;           // sidebar column width
 
-const LBL_H  = 14;   // label row height
-const FLD_H  = 20;   // single-line input row height
-const FLD_M  = 42;   // multi-line input row (Anschlussnutzer address)
-const MP_H   = 18;   // Messprodukt table data row height
+// Column widths — standard tables
+const LBL = 120.5;       // label column  (2410 dxa)
+const FLD = TW - LBL;   // 319.0pt field column (6379 dxa)
 
-// ── pdf-lib setup ─────────────────────────────────────────────────────────────
+// Anschlussnutzer R3 sub-columns
+const KOR_S = 109.6;     // "Straße, Hausnummer"  (2192 dxa)
+const KOR_P = TW - LBL - KOR_S;  // 209.4pt "PLZ, Ort" (4187 dxa)
+
+// ESA/MSB column widths
+const ESA_LBL = 119.6;            // label  (2392 dxa)
+const ESA_FLD = SW - SB - ESA_LBL; // 319.0pt field (6379 dxa)
+const ESA_H1  = 297.1;            // header part 1 (5942 dxa)
+const ESA_H2  = SW - SB - ESA_H1; // 141.5pt header part 2 (2829 dxa)
+
+// Messprodukten column widths
+const MP_C = 92.15;              // code  (1843 dxa)
+const MP_X = 28.35;              // star  (567 dxa)
+const MP_D = TW - MP_C - MP_X;  // 319.0pt desc (6379 dxa)
+
+// ── Row heights ────────────────────────────────────────────────────────────────
+const RH   = 18;   // standard data row   (288 twips = 14.4pt min, auto ~18pt)
+const HDR  = 16;   // blue section header
+const HINT = 14;   // hint / sub-label row
+
+// ── Font sizes ─────────────────────────────────────────────────────────────────
+const SZ   = 10.5; // body text (sz=21 half-points in Word)
+const SZ_S = 8.5;  // small label / hint text inside cells
+
+// ── Colors ─────────────────────────────────────────────────────────────────────
+const BLACK  = rgb(0,      0,      0     );
+const MUTED  = rgb(0.4,    0.4,    0.4   );
+const BLUE   = rgb(0.475,  0.784,  1.0   );   // #79C8FF
+const DARK   = rgb(0.161,  0.161,  0.161 );   // #292929 consent box
+const FIELD  = rgb(0.94,   0.94,   0.94  );   // AcroForm input background
+const WHITE  = rgb(1,      1,      1     );
+const BORDER = rgb(0.67,   0.67,   0.67  );
+
+// ── PDF / font setup ──────────────────────────────────────────────────────────
 const doc  = await PDFDocument.create();
 const font = await doc.embedFont(StandardFonts.Helvetica);
 const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -46,317 +78,448 @@ let page, y;
 
 function newPage() {
   page = doc.addPage([W, H]);
-  y = H - M;
+  y = H - MT;
 }
 newPage();
 
-function need(h) { if (y < M + h) newPage(); }
-
-// ── Primitives ────────────────────────────────────────────────────────────────
-function txt(str, x, yy, sz, f = font, color = BLACK) {
-  page.drawText(str, { x, y: yy, size: sz, font: f, color });
+// Ensure at least `h` points remain on this page; otherwise start new page
+function need(h) {
+  if (y - MB < h) newPage();
 }
 
-/** Draw text centred on the page. */
-function txtC(str, yy, sz, f = font, color = BLACK) {
-  const w = f.widthOfTextAtSize(str, sz);
-  const x = (W - w) / 2;
-  page.drawText(str, { x, y: yy, size: sz, font: f, color });
+// ── Character sanitizer (WinAnsiEncoding compatibility) ───────────────────────
+// StandardFonts use WinAnsiEncoding; replace chars outside that range.
+function san(s) {
+  if (!s) return s;
+  return s
+    .replace(/ /g, ' ')   // NARROW NO-BREAK SPACE → space
+    .replace(/ /g, ' ')   // NO-BREAK SPACE → space
+    .replace(/ /g, ' ')   // EN SPACE → space
+    .replace(/ /g, ' ')   // EM SPACE → space
+    .replace(/„/g, '"')   // LOW-9 QUOTATION MARK → "
+    .replace(/“/g, '"')   // LEFT DOUBLE QUOTATION → "
+    .replace(/”/g, '"')   // RIGHT DOUBLE QUOTATION → "
+    .replace(/‘/g, "'")   // LEFT SINGLE QUOTATION → '
+    .replace(/’/g, "'")   // RIGHT SINGLE QUOTATION → '
+    .replace(/•/g, '\xb7') // BULLET → middle dot
+    .replace(/…/g, '...') // HORIZONTAL ELLIPSIS → ...
+    .replace(/–/g, '-')   // EN DASH → -
+    .replace(/—/g, '--'); // EM DASH → --
+}
+
+// ── Primitive drawing helpers ──────────────────────────────────────────────────
+function txt(str, x, yy, sz, f = font, color = BLACK) {
+  if (!str) return;
+  page.drawText(san(str), { x, y: yy, size: sz, font: f, color });
 }
 
 function box(x, yy, w, h, fill, stroke = null) {
   page.drawRectangle({
-    x, y: yy, width: w, height: h, color: fill,
+    x, y: yy, width: w, height: h,
+    color: fill,
     ...(stroke ? { borderColor: stroke, borderWidth: 0.5 } : {}),
   });
 }
 
 function acro(name, x, yy, w, h, multi = false) {
-  const fld = form.createTextField(name);
-  fld.addToPage(page, { x, y: yy, width: w, height: h, borderWidth: 0, backgroundColor: FLD_BG });
-  if (multi) fld.enableMultiline();
+  const f = form.createTextField(name);
+  f.addToPage(page, {
+    x: x + 1, y: yy + 1, width: w - 2, height: h - 2,
+    borderWidth: 0, backgroundColor: FIELD,
+  });
+  if (multi) f.enableMultiline();
 }
 
-// ── Text wrapping ─────────────────────────────────────────────────────────────
-function wrapText(str, maxWidth, sz, f) {
-  const words = str.split(' ');
+// ── Text-wrap helpers ─────────────────────────────────────────────────────────
+function wrapLines(text, maxW, sz, f) {
+  const safe = san(text);
+  const words = safe.split(' ');
   const lines = [];
   let line = '';
-  for (const word of words) {
-    const test = line ? line + ' ' + word : word;
-    if (f.widthOfTextAtSize(test, sz) <= maxWidth) {
-      line = test;
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w;
+    if (line && f.widthOfTextAtSize(test, sz) > maxW) {
+      lines.push(line);
+      line = w;
     } else {
-      if (line) lines.push(line);
-      line = word;
+      line = test;
     }
   }
   if (line) lines.push(line);
   return lines;
 }
 
-/** Draw a wrapped paragraph, returns y after last line. */
-function drawPara(str, x, startY, maxW, sz = SZ, f = font, color = BLACK, lh = null) {
-  const lineH = lh ?? sz + 3.5;
-  const lines = wrapText(str, maxW, sz, f);
-  let yy = startY;
-  for (const ln of lines) {
-    txt(ln, x, yy, sz, f, color);
-    yy -= lineH;
+// Draw wrapped text block, returns total height consumed
+function drawWrapped(text, x, y0, maxW, sz, f = font, color = BLACK, lh = null) {
+  const leading = lh ?? sz * 1.35;
+  const lines = wrapLines(text, maxW, sz, f);
+  let yy = y0;
+  for (const l of lines) {
+    txt(l, x, yy, sz, f, color);
+    yy -= leading;
   }
-  return yy;
+  return lines.length * leading;
 }
 
-/** Height a wrapped paragraph + optional padding will occupy. */
-function paraH(str, maxW, sz = SZ, f = font, pad = 0) {
-  const lines = wrapText(str, maxW, sz, f);
-  return Math.ceil(lines.length * (sz + 3.5) + pad);
-}
-
-// ── Table row ─────────────────────────────────────────────────────────────────
-// cells: [{ w, fill?, text?, sz?, bold?, color?, wrap?, field?, multi? }]
-function row(cells, rowH, x0 = M) {
+// ── Table row helpers ──────────────────────────────────────────────────────────
+// cells: [{w, fill?, text?, sz?, isBold?, color?, fieldName?, multi?}]
+function drawRow(cells, rowH, x0 = TX) {
   need(rowH);
+  const top = y;
   let cx = x0;
   for (const c of cells) {
-    box(cx, y - rowH, c.w, rowH, c.fill ?? WHITE, BRD);
-    const rf = c.bold ? bold : font;
-    const rs = c.sz ?? SZ;
+    box(cx, top - rowH, c.w, rowH, c.fill ?? WHITE, BORDER);
     if (c.text) {
-      if (c.wrap) {
-        // Multi-line cell text — top-aligned with 2.5 pt top padding
-        const lines = wrapText(c.text, c.w - 8, rs, rf);
-        const lh = rs + 3.5;
-        let ty = y - rs - 2.5;
-        for (const ln of lines) {
-          txt(ln, cx + 4, ty, rs, rf, c.color ?? BLACK);
-          ty -= lh;
-        }
-      } else {
-        // Single-line cell text — vertically centred
-        const ty = y - rowH + Math.round((rowH - rs) / 2) + 1;
-        txt(c.text, cx + 4, ty, rs, rf, c.color ?? BLACK);
-      }
+      const f  = c.isBold ? bold : font;
+      const sz = c.sz ?? SZ;
+      const ty = top - rowH + (rowH - sz) / 2 + 0.5;
+      txt(c.text, cx + 3.5, ty, sz, f, c.color ?? BLACK);
     }
-    if (c.field) {
-      acro(c.field, cx + 1, y - rowH + 1, c.w - 2, rowH - 2, c.multi ?? false);
+    if (c.fieldName) {
+      acro(c.fieldName, cx, top - rowH, c.w, rowH, c.multi ?? false);
     }
     cx += c.w;
   }
   y -= rowH;
 }
 
-function rowSB(cells, rowH) { row(cells, rowH, M + SW); }
-
-/** Blue section header row, auto-height to fit wrapped title text. */
-function hdr(title, x0 = M, pw = PW) {
-  const lines = wrapText(title, pw - 8, SZ, bold);
-  const h = Math.max(16, lines.length === 1 ? 16 : lines.length * (SZ + 3) + 6);
-  need(h);
-  box(x0, y - h, pw, h, BLUE, BRD);
-  if (lines.length === 1) {
-    const ty = y - h + Math.round((h - SZ) / 2) + 1;
-    txt(lines[0], x0 + 4, ty, SZ, bold, BLACK);
-  } else {
-    let ty = y - SZ - 3;
-    for (const ln of lines) {
-      txt(ln, x0 + 4, ty, SZ, bold, BLACK);
-      ty -= SZ + 3;
+// ESA/MSB table row: blue sidebar cell + content cells
+function drawRowSB(cells, rowH) {
+  need(rowH);
+  const top = y;
+  // Blue sidebar cell (no right/inner border)
+  box(SX, top - rowH, SB, rowH, BLUE, BORDER);
+  // Content cells
+  let cx = SX + SB;
+  for (const c of cells) {
+    box(cx, top - rowH, c.w, rowH, c.fill ?? WHITE, BORDER);
+    if (c.text) {
+      const f  = c.isBold ? bold : font;
+      const sz = c.sz ?? SZ;
+      const ty = top - rowH + (rowH - sz) / 2 + 0.5;
+      txt(c.text, cx + 3.5, ty, sz, f, c.color ?? BLACK);
     }
+    if (c.fieldName) {
+      acro(c.fieldName, cx, top - rowH, c.w, rowH, c.multi ?? false);
+    }
+    cx += c.w;
   }
-  y -= h;
+  y -= rowH;
 }
 
-/** Blue sidebar drawn after all rows of an ESA/MSB table. */
-function sidebar(ys) {
-  const th = ys - y;
-  if (th > 0) box(M, y, SW, th, BLUE, BRD);
+// Blue section header (standard table width)
+function hdr(title, x0 = TX, w = TW) {
+  // Truncate or scale font to fit if needed
+  const sz = bold.widthOfTextAtSize(title, SZ_S) < (w - 7) ? SZ_S : SZ_S - 1;
+  need(HDR);
+  box(x0, y - HDR, w, HDR, BLUE, BORDER);
+  const ty = y - HDR + (HDR - sz) / 2 + 0.5;
+  txt(title, x0 + 3.5, ty, sz, bold, BLACK);
+  y -= HDR;
 }
 
-/** Calculate row height needed for wrapped cell text (includes 7 pt padding). */
-function cellH(text, cellW, sz = SZ, f = font) {
-  return Math.ceil(paraH(text, cellW - 8, sz, f, 7));
+// Blue section header for ESA/MSB table (sidebar + two header cells)
+function hdrSB(title) {
+  const sz = bold.widthOfTextAtSize(title, SZ_S) < (ESA_H1 + ESA_H2 - 7) ? SZ_S : SZ_S - 1;
+  need(HDR);
+  const top = y;
+  box(SX,          top - HDR, SB,    HDR, BLUE, BORDER);
+  box(SX + SB,     top - HDR, ESA_H1, HDR, BLUE, BORDER);
+  box(SX + SB + ESA_H1, top - HDR, ESA_H2, HDR, BLUE, BORDER);
+  const ty = top - HDR + (HDR - sz) / 2 + 0.5;
+  txt(title, SX + SB + 3.5, ty, sz, bold, BLACK);
+  y -= HDR;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PAGE 1
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── Title ─────────────────────────────────────────────────────────────────────
-need(110);
-y -= 4;
-txtC('Einwilligungserklärung des Anschlussnutzers zur Übermittlung von Messprodukten durch den', y, SZ, bold);
+// ══════════════════════════════════════════════════════════════════════════════
+// TITLE BLOCK
+// ══════════════════════════════════════════════════════════════════════════════
+need(80);
+txt('Einwilligungserklärung des Anschlussnutzers zur Übermittlung von Messprodukten durch den',
+    ML, y, SZ, bold);
 y -= 14;
-txtC('Messstellenbetreiber an den Energieserviceanbieter des Anschlussnutzers', y, SZ, bold);
-y -= 14;
-txtC('für Messlokationen', y, SZ, bold);
-y -= 12;
-txtC('Verarbeitung personenbezogener bzw. persönlicher Daten nach § 49 Abs. 2 Nr. 7 MsbG', y, SZ);
-y -= 13;
-txtC('und auf der Grundlage der DS-GVO zu Zwecken der Anfrage und Übermittlung von Messprodukten', y, SZ);
-y -= 13;
-txtC('gemäß BNetzA-Festlegung BK6-22-024 bzw. BK6-24-174', y, SZ);
-y -= 13;
-txtC('Anwendung des Muster-Formulars, Version 1.2 für Zeiträume ab dem 6. Juni 2025', y, SZ);
+txt('Messstellenbetreiber an den Energieserviceanbieter des Anschlussnutzers für Messlokationen',
+    ML, y, SZ, bold);
+y -= 15;
+
+// Subtitle (wrapped)
+const subtitle =
+  'Verarbeitung personenbezogener bzw. persönlicher Daten nach § 49 Abs. 2 Nr. 7 MsbG' +
+  ' und auf der Grundlage der DS-GVO zu Zwecken der Anfrage und Übermittlung von Messprodukten' +
+  ' gemäß BNetzA-Festlegung BK6-22-024 bzw. BK6-24-174 · Anwendung des Muster-Formulars,' +
+  ' Version 1.2 für Zeiträume ab dem 6. Juni 2025';
+{
+  const lh = 10.5;
+  const lines = wrapLines(subtitle, W - ML - ML, 8, font);
+  for (const l of lines) { txt(l, ML, y, 8, font, MUTED); y -= lh; }
+}
+y -= 3;
+page.drawLine({ start: { x: ML, y }, end: { x: W - ML, y }, thickness: 0.5, color: BORDER });
 y -= 9;
-page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: BRD });
-y -= 8;
 
-// ── Anschlussnutzer ───────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// TABLE 1 — ANSCHLUSSNUTZER  (8789 dxa, indent 137 dxa)
+// ══════════════════════════════════════════════════════════════════════════════
 hdr('Anschlussnutzer');
-row([
-  { w: PW * 0.55, text: 'Nachname, Vorname bzw. Firma *' },
-  { w: PW * 0.45 },
-], LBL_H);
-row([{ w: PW, fill: FLD_BG, field: 'ANSCHLUSSNUTZER_NAME' }], FLD_H);
-row([{ w: PW, text: 'Korrespondenzanschrift · Straße, Hausnummer' }], LBL_H);
-row([{ w: PW, fill: FLD_BG, field: 'ANSCHLUSSNUTZER_ADRESSE', multi: true }], FLD_M);
-row([
-  { w: PW * 0.5, text: 'Postleitzahl, Ort' },
-  { w: PW * 0.5 },
-], LBL_H);
-row([
-  { w: PW * 0.5, fill: FLD_BG },
-  { w: PW * 0.5 },
-], FLD_H);
-y -= 5;
+// R2: Nachname label | ANSCHLUSSNUTZER_NAME field
+drawRow([
+  { w: LBL, text: 'Nachname, Vorname bzw. Firma *', sz: SZ_S, color: MUTED },
+  { w: FLD, fieldName: 'ANSCHLUSSNUTZER_NAME' },
+], RH);
+// R3: Korrespondenzanschrift sub-headers
+drawRow([
+  { w: LBL, text: 'Korrespondenzanschrift', sz: SZ_S, color: MUTED },
+  { w: KOR_S, text: 'Straße, Hausnummer', sz: SZ_S, color: MUTED },
+  { w: KOR_P, text: 'Postleitzahl, Ort', sz: SZ_S, color: MUTED },
+], HINT);
+// R4: Straße input
+drawRow([
+  { w: LBL },
+  { w: FLD, fieldName: 'ANSCHLUSSNUTZER_ADRESSE' },
+], RH);
+// R5: PLZ/Ort input (no separate field — visual placeholder)
+drawRow([{ w: LBL }, { w: FLD }], RH);
+y -= 4;
 
-// ── ESA ───────────────────────────────────────────────────────────────────────
-const esa_ys = y;
-hdr('Energieserviceanbieter des Anschlussnutzers (ESA)', M + SW, CW);
-rowSB([{ w: CW, text: 'Firma *' }], LBL_H);
-rowSB([{ w: CW, fill: FLD_BG, field: 'ESA_NAME' }], FLD_H);
-rowSB([
-  { w: CW * 0.55, text: 'Straße, Hausnummer · Postleitzahl, Ort' },
-  { w: CW * 0.45, text: 'MP-ID * (13-stellig)' },
-], LBL_H);
-rowSB([
-  { w: CW * 0.55, fill: FLD_BG },
-  { w: CW * 0.45, fill: FLD_BG, field: 'ESA_MARKTPARTNER_ID' },
-], FLD_H);
-sidebar(esa_ys);
-y -= 5;
+// ══════════════════════════════════════════════════════════════════════════════
+// TABLE 2 — ESA  (8931 dxa, no indent, blue sidebar)
+// ══════════════════════════════════════════════════════════════════════════════
+need(HDR + RH + HINT + HINT + RH);
+hdrSB('Energieserviceanbieter des Anschlussnutzers (ESA)');
+drawRowSB([
+  { w: ESA_LBL, text: 'Firma *', sz: SZ_S, color: MUTED },
+  { w: ESA_FLD, fieldName: 'ESA_NAME' },
+], RH);
+drawRowSB([
+  { w: ESA_LBL, text: 'Straße, Hausnummer', sz: SZ_S, color: MUTED },
+  { w: ESA_FLD },
+], HINT);
+drawRowSB([
+  { w: ESA_LBL, text: 'Postleitzahl, Ort', sz: SZ_S, color: MUTED },
+  { w: ESA_FLD },
+], HINT);
+drawRowSB([
+  { w: ESA_LBL, text: 'MP-ID * (13-stellig)', sz: SZ_S, color: MUTED },
+  { w: ESA_FLD, fieldName: 'ESA_MARKTPARTNER_ID' },
+], RH);
+y -= 4;
 
-// ── MSB ───────────────────────────────────────────────────────────────────────
-const msb_ys = y;
-hdr('Messstellenbetreiber des Anschlussnutzers (MSB)', M + SW, CW);
-rowSB([{ w: CW, text: 'Firma *' }], LBL_H);
-rowSB([{ w: CW, fill: FLD_BG, field: 'MSB_NAME' }], FLD_H);
-rowSB([
-  { w: CW * 0.55, text: 'Straße, Hausnummer · Postleitzahl, Ort' },
-  { w: CW * 0.45, text: 'MP-ID * (13-stellig)' },
-], LBL_H);
-rowSB([
-  { w: CW * 0.55, fill: FLD_BG },
-  { w: CW * 0.45, fill: FLD_BG, field: 'MSB_CODE_NR' },
-], FLD_H);
-sidebar(msb_ys);
-y -= 5;
+// ══════════════════════════════════════════════════════════════════════════════
+// TABLE 3 — MSB  (same geometry as ESA)
+// ══════════════════════════════════════════════════════════════════════════════
+need(HDR + RH + HINT + HINT + RH);
+hdrSB('Messstellenbetreiber des Anschlussnutzers (MSB)');
+drawRowSB([
+  { w: ESA_LBL, text: 'Firma *', sz: SZ_S, color: MUTED },
+  { w: ESA_FLD, fieldName: 'MSB_NAME' },
+], RH);
+drawRowSB([
+  { w: ESA_LBL, text: 'Straße, Hausnummer', sz: SZ_S, color: MUTED },
+  { w: ESA_FLD },
+], HINT);
+drawRowSB([
+  { w: ESA_LBL, text: 'Postleitzahl, Ort', sz: SZ_S, color: MUTED },
+  { w: ESA_FLD },
+], HINT);
+drawRowSB([
+  { w: ESA_LBL, text: 'MP-ID * (13-stellig)', sz: SZ_S, color: MUTED },
+  { w: ESA_FLD, fieldName: 'MSB_CODE_NR' },
+], RH);
+y -= 4;
 
-// ── Zeitraum ──────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// TABLE 4 — ZEITRAUM  (3 rows: header + Beginn + Ende)
+// ══════════════════════════════════════════════════════════════════════════════
 hdr('Gültigkeitszeitraum der Einwilligung zur Anfrage und Übermittlung von Messprodukten');
-row([
-  { w: PW * 0.25, text: 'Beginn-Datum *' },
-  { w: PW * 0.25, text: 'TT.MM.JJJJ' },
-  { w: PW * 0.25, text: 'Ende-Datum' },
-  { w: PW * 0.25, text: 'TT.MM.JJJJ' },
-], LBL_H);
-row([
-  { w: PW * 0.5, fill: FLD_BG, field: 'BEGINN_DATUM' },
-  { w: PW * 0.5, fill: FLD_BG, field: 'ENDE_DATUM' },
-], FLD_H);
-y -= 5;
+// R2: Beginn-Datum
+drawRow([
+  { w: LBL, text: 'Beginn-Datum *', sz: SZ_S, color: MUTED },
+  { w: FLD, fieldName: 'BEGINN_DATUM' },
+], RH);
+// R3: Ende-Datum
+drawRow([
+  { w: LBL, text: 'Ende-Datum', sz: SZ_S, color: MUTED },
+  { w: FLD, fieldName: 'ENDE_DATUM' },
+], RH);
+y -= 4;
 
-// ── Messlokationen ────────────────────────────────────────────────────────────
-const ML1 = 'Die Messlokationen, für welche Messwerte entsprechend den zutreffenden Messprodukten angefragt und übermittelt werden, sind der Anlage zur Einwilligungserklärung zu entnehmen.';
-const ML2 = 'Bitte beachten Sie bei der Angabe der Messprodukte, die vom MSB auf seiner Internetseite aufgelisteten Angebote.';
-hdr('Angaben zu den Messlokationen');
-row([{ w: PW, text: ML1, wrap: true }], cellH(ML1, PW));
-row([{ w: PW, text: ML2, wrap: true }], cellH(ML2, PW));
-y -= 5;
+// ══════════════════════════════════════════════════════════════════════════════
+// TABLE 5 — MESSLOKATIONEN  (2 rows: header + body text)
+// ══════════════════════════════════════════════════════════════════════════════
+{
+  const t1 = 'Die Messlokationen, für welche Messwerte entsprechend den zutreffenden Messprodukten' +
+             ' angefragt und übermittelt werden, sind der Anlage zur Einwilligungserklärung zu entnehmen.';
+  const t2 = 'Bitte beachten Sie bei der Angabe der Messprodukte, die vom MSB auf seiner Internetseite' +
+             ' aufgelisteten Angebote.';
+  const lh = SZ * 1.35;
+  const pad = 5;
+  const maxW = TW - 7;
+  const l1 = wrapLines(t1, maxW, SZ, font);
+  const l2 = wrapLines(t2, maxW, SZ, font);
+  const bodyH = pad + (l1.length + l2.length) * lh + lh * 0.6 + pad; // gap between paragraphs
 
-// ── Messprodukten ─────────────────────────────────────────────────────────────
-const MP_INTRO = 'In der nachfolgenden Tabelle sind die Codes aufzunehmen, für die der Anschlussnutzer eine Einwilligungserklärung über dieses Dokument für den ESA erteilt. Dabei können nur die Codes verwendet werden, die in der aktuell gültigen Version der EDI@Energy „Codeliste der Konfigurationen“ enthalten sind und dort zur Nutzung durch den ESA aufgelistet sind.';
-hdr('Angaben zu den Messprodukten');
-row([{ w: PW, text: MP_INTRO, wrap: true }], cellH(MP_INTRO, PW));
-
-const CODE_W = Math.round(PW * 0.35);
-const BEZ_W  = PW - CODE_W;
-row([
-  { w: CODE_W, text: 'Messprodukt-Code',             bold: true },
-  { w: BEZ_W,  text: 'Messproduktcodebezeichnung *', bold: true },
-], LBL_H + 2);
-for (let i = 1; i <= 10; i++) {
-  row([
-    { w: CODE_W, fill: i % 2 === 0 ? EVEN_BG : FLD_BG, field: `MP_${i}_CODE` },
-    { w: BEZ_W,  fill: i % 2 === 0 ? EVEN_BG : FLD_BG, field: `MP_${i}_BEZEICHNUNG` },
-  ], MP_H);
+  hdr('Angaben zu den Messlokationen');
+  need(bodyH);
+  box(TX, y - bodyH, TW, bodyH, WHITE, BORDER);
+  let by = y - pad;
+  for (const l of l1) { txt(l, TX + 3.5, by, SZ); by -= lh; }
+  by -= lh * 0.4;
+  for (const l of l2) { txt(l, TX + 3.5, by, SZ); by -= lh; }
+  y -= bodyH;
 }
-y -= 10;
+y -= 4;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PAGE 2  (content below will flow onto the second page via need())
-// ─────────────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// FREE PARAGRAPH — between tables 5 and 6
+// ══════════════════════════════════════════════════════════════════════════════
+{
+  const para =
+    'In der nachfolgenden Tabelle sind die Codes aufzunehmen, für die der Anschlussnutzer eine' +
+    ' Einwilligungserklärung über dieses Dokument für den ESA erteilt. Dabei können nur die Codes' +
+    ' verwendet werden, die in der aktuell gültigen Version der EDI@Energy „Codeliste der' +
+    ' Konfigurationen“ enthalten sind und dort zur Nutzung durch den ESA aufgelistet sind.';
+  const lh = SZ * 1.35;
+  const lines = wrapLines(para, W - ML - ML, SZ, font);
+  need(lines.length * lh + 10);
+  for (const l of lines) { txt(l, ML, y, SZ); y -= lh; }
+  y -= 6;
+}
 
-// ── Consent box (dark background, white text, numbered items) ─────────────────
-const CONSENT_PAD = 10;
-const CONSENT_TW  = PW - 2 * CONSENT_PAD;
-
-const C1 = '1.  Hiermit willige ich in die Übermittlung meiner Daten (insbesondere Messwerte entsprechend den Messprodukten) an den ESA durch den MSB ein. Soweit erforderlich, willige ich auch in die Erhebung der für das Messprodukt erforderlichen Daten ein.';
-const C2 = '2.  Zudem willige ich ein, dass mein ESA zur Verarbeitung meiner Daten (insbesondere Messwerte entsprechend der Messprodukten) als berechtigte Stelle im Sinne des § 49 Abs. 2 Nr. 7 MsbG berechtigt ist.';
-
-const c1Lines = wrapText(C1, CONSENT_TW, SZ_B, font).length;
-const c2Lines = wrapText(C2, CONSENT_TW, SZ_B, font).length;
-const consentH = (c1Lines + c2Lines) * (SZ_B + 4) + 20;
-
-need(consentH);
-box(M, y - consentH, PW, consentH, DARK_BG);
-let cy = y - SZ_B - CONSENT_PAD;
-cy = drawPara(C1, M + CONSENT_PAD, cy, CONSENT_TW, SZ_B, font, WHITE, SZ_B + 4);
-cy -= 4;
-drawPara(C2, M + CONSENT_PAD, cy, CONSENT_TW, SZ_B, font, WHITE, SZ_B + 4);
-y -= consentH;
+// ══════════════════════════════════════════════════════════════════════════════
+// TABLE 6 — MESSPRODUKTEN  (header + 2 col-header rows + 10 data rows)
+// ══════════════════════════════════════════════════════════════════════════════
+hdr('Angaben zu den Messprodukten');
+// Column header row 1
+drawRow([
+  { w: MP_C, text: 'Messprodukt-Code', sz: SZ_S, isBold: true },
+  { w: MP_D, text: 'Messproduktcodebezeichnung *', sz: SZ_S, isBold: true },
+  { w: MP_X },
+], HINT);
+// Column header row 2 (matches Word doc R3 — asterisk note row)
+drawRow([
+  { w: MP_C, text: '*  = Pflichtfeld', sz: 7, color: MUTED },
+  { w: MP_D },
+  { w: MP_X },
+], HINT);
+// 10 data rows
+for (let i = 1; i <= 10; i++) {
+  drawRow([
+    { w: MP_C, fieldName: `MP_${i}_CODE` },
+    { w: MP_D, fieldName: `MP_${i}_BEZEICHNUNG` },
+    { w: MP_X },
+  ], RH);
+}
 y -= 8;
 
-// ── Legal paragraphs ──────────────────────────────────────────────────────────
-const LEGAL = [
-  'Der MSB übermittelt die Messwerte zu den angefragten Messprodukten gemäß den Regularien der BNetzA-Festlegung BK6-24-024 bzw. der BNetzA-Festlegung BK6-24-0174, Wechselprozesse im Messwesen, Teil 2, Use-Cases „Anfrage und Übermittlung von Werten durch und an den ESA“ an den ESA.',
-  'Die in der Einwilligungserklärung aufgeführten Daten werden nur zur Vertragsdurchführung zwischen dem ESA und dem Anschlussnutzer verarbeitet. Informationen zur Verarbeitung Ihrer personenbezogenen Daten finden Sie in der beigefügten Datenschutzinformation.',
-  'Widerrufsbelehrung gemäß DS-GVO: Die Einwilligungen können Sie jederzeit mit Wirkung für die Zukunft gegenüber dem ESA unter den oben genannten Kontaktdaten unter dem Stichwort „Datenschutz“ widerrufen. Die Einwilligung zu 1. können Sie auch direkt gegenüber Ihrem MSB widerrufen.',
-  'Die Einwilligung ist freiwillig. Ohne diese Einwilligungen kann Ihr ESA aber ggf. seine vertragliche Leistung nicht erbringen.',
-];
-for (const para of LEGAL) {
-  const h = paraH(para, PW, SZ_B, font, 8);
-  need(h);
-  y = drawPara(para, M, y, PW, SZ_B) - 4;
+// ══════════════════════════════════════════════════════════════════════════════
+// CONSENT SECTION — numbered list on dark background
+// ══════════════════════════════════════════════════════════════════════════════
+{
+  const c1 =
+    '1. Hiermit willige ich in die Übermittlung meiner Daten (insbesondere Messwerte entsprechend' +
+    ' den Messprodukten) an den ESA durch den MSB ein. Soweit erforderlich, willige ich auch in die' +
+    ' Erhebung der für das Messprodukt erforderlichen Daten ein.';
+  const c2 =
+    '2. Zudem willige ich ein, dass mein ESA zur Verarbeitung meiner Daten (insbesondere Messwerte' +
+    ' entsprechend der Messprodukten) als berechtigte Stelle im Sinne des § 49 Abs. 2' +
+    ' Nr. 7 MsbG berechtigt ist.';
+  const conW = W - ML - ML;
+  const lh = SZ * 1.38;
+  const padV = 6;
+  const l1 = wrapLines(c1, conW - 10, SZ, font);
+  const l2 = wrapLines(c2, conW - 10, SZ, font);
+  const conH = padV + (l1.length + l2.length) * lh + lh * 0.6 + padV;
+  need(conH);
+  box(ML, y - conH, conW, conH, DARK);
+  let cy = y - padV;
+  for (const l of l1) { txt(l, ML + 6, cy, SZ, font, WHITE); cy -= lh; }
+  cy -= lh * 0.4;
+  for (const l of l2) { txt(l, ML + 6, cy, SZ, font, WHITE); cy -= lh; }
+  y -= conH;
+}
+y -= 8;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LEGAL PARAGRAPHS
+// ══════════════════════════════════════════════════════════════════════════════
+{
+  const paras = [
+    'Der MSB übermittelt die Messwerte zu den angefragten Messprodukten gemäß den Regularien der' +
+    ' BNetzA-Festlegung BK6-24-024 bzw. der BNetzA-Festlegung BK6-24-0174, Wechselprozesse im' +
+    ' Messwesen, Teil 2, Use-Cases „Anfrage und Übermittlung von Werten durch und an den' +
+    ' ESA“ an den ESA.',
+
+    'Die in der Einwilligungserklärung aufgeführten Daten werden nur zur Vertragsdurchführung' +
+    ' zwischen dem ESA und dem Anschlussnutzer verarbeitet. Informationen zur Verarbeitung Ihrer' +
+    ' personenbezogenen Daten finden Sie in der beigefügten Datenschutzinformation.',
+
+    'Widerrufsbelehrung gemäß DS-GVO: Die Einwilligungen können Sie jederzeit mit Wirkung für' +
+    ' die Zukunft gegenüber dem ESA unter den oben genannten Kontaktdaten unter dem Stichwort' +
+    ' „Datenschutz“ widerrufen. Die Einwilligung zu 1. können Sie auch direkt' +
+    ' gegenüber Ihrem MSB widerrufen.',
+
+    'Die Einwilligung ist freiwillig. Ohne diese Einwilligungen kann Ihr ESA aber ggf. seine' +
+    ' vertragliche Leistung nicht erbringen.',
+  ];
+  const lh = SZ * 1.35;
+  for (const p of paras) {
+    const lines = wrapLines(p, W - ML - ML, SZ, font);
+    need(lines.length * lh + 6);
+    for (const l of lines) { txt(l, ML, y, SZ); y -= lh; }
+    y -= 5;
+  }
+}
+y -= 6;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SIGNATURE LINES
+// ══════════════════════════════════════════════════════════════════════════════
+need(90);
+// 4 blank signature lines (bottom-bordered)
+for (let i = 0; i < 4; i++) {
+  page.drawLine({ start: { x: ML, y }, end: { x: W - ML, y }, thickness: 0.5, color: BORDER });
+  y -= 20;
+}
+y -= 4;
+txt('Ort, Datum, Unterschrift Anschlussnutzer', ML, y, SZ, font, MUTED);
+y -= 20;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AUSFÜLLHINWEISE  (starts on page 3 due to need() page-break)
+// ══════════════════════════════════════════════════════════════════════════════
+{
+  const hints = [
+    'Die in der Einwilligungserklärung verwendeten Begriffe referenzieren auf die der Erklärung' +
+    ' zugrunde liegende BNetzA-Festlegung BK6-22-024 bzw. BK6-24-174 sowie den für die Umsetzung' +
+    ' der BNetzA-Festlegung relevanten EDI@Energy-Dokumente.',
+
+    'Mit * markierte Felder in der Einwilligungserklärung sind Pflichtangaben.',
+
+    'Sofern für Marktlokationen und Tranchen oder Netzlokationen Messprodukte angefragt und' +
+    ' übermittelt werden sollen, ist hierfür die separate „Einwilligungserklärung für' +
+    ' Marktlokationen und Tranchen“ bzw. „Einwilligungserklärung für Netzlokationen“' +
+    ' zu verwenden.',
+  ];
+  const lh  = SZ * 1.35;
+  const maxW = W - ML - ML - 14;
+
+  need(120);
+  txt('Ausfüllhinweise', ML, y, SZ, bold);
+  txt(': ', ML + bold.widthOfTextAtSize('Ausfüllhinweise', SZ), y, SZ, font);
+  y -= SZ * 1.5;
+
+  for (const hint of hints) {
+    const lines = wrapLines(hint, maxW, SZ, font);
+    need(lines.length * lh + 8);
+    txt('•', ML + 3, y, SZ);
+    let hy = y;
+    for (const l of lines) { txt(l, ML + 14, hy, SZ); hy -= lh; }
+    y = hy;
+    y -= 4;
+  }
 }
 
-// ── Signature line ────────────────────────────────────────────────────────────
-need(40);
-y -= 12;
-page.drawLine({ start: { x: M, y }, end: { x: M + 280, y }, thickness: 0.5, color: BLACK });
-y -= SZ_B + 4;
-txt('Ort, Datum, Unterschrift Anschlussnutzer', M, y, SZ_B);
-y -= 14;
-
-// ── Ausfüllhinweise ───────────────────────────────────────────────────────────
-need(50);
-page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: BRD });
-y -= SZ_B + 5;
-txt('Ausfüllhinweise:', M, y, SZ_B, bold);
-y -= SZ_B + 4;
-const NOTES = [
-  'Die in der Einwilligungserklärung verwendeten Begriffe referenzieren auf die der Erklärung zugrunde liegende BNetzA-Festlegung BK6-22-024 bzw. BK6-24-174 sowie den für die Umsetzung der BNetzA-Festlegung relevanten EDI@Energy-Dokumente.',
-  'Mit * markierte Felder in der Einwilligungserklärung sind Pflichtangaben.',
-  'Sofern für Marktlokationen und Tranchen oder Netzlokationen Messprodukte angefragt und übermittelt werden sollen, ist hierfür die separate „Einwilligungserklärung für Marktlokationen und Tranchen“ bzw. „Einwilligungserklärung für Netzlokationen“ zu verwenden.',
-];
-for (const note of NOTES) {
-  const h = paraH(note, PW, SZ_B, font, 6);
-  need(h);
-  y = drawPara(note, M, y, PW, SZ_B) - 4;
-}
-
-// ── Write file ────────────────────────────────────────────────────────────────
+// ── Write ──────────────────────────────────────────────────────────────────────
 const bytes = await doc.save();
 writeFileSync(OUT, bytes);
 console.log(`✓ ${OUT}`);
