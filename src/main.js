@@ -21,6 +21,12 @@ function scheduleSave() {
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => saveState(state, chrome.storage), 400);
 }
+
+let _rerenderTimer = null;
+function scheduleRerender() {
+  clearTimeout(_rerenderTimer);
+  _rerenderTimer = setTimeout(rerender, 150);
+}
 const backBtn = document.getElementById('backBtn');
 const nextBtn = document.getElementById('nextBtn');
 const generateBtn = document.getElementById('generateBtn');
@@ -49,18 +55,20 @@ const ops = {
   change: (path, value) => {
     setByPath(state, path, value);
     scheduleSave();
-    rerender();
+    scheduleRerender();
   },
   addRow: () => {
     if (state.messpunkte.length >= 10) return;
     state.messpunkte.push({ kind: 'MaLo', id: '', richtung: 'Verbrauch' });
     scheduleSave();
+    clearTimeout(_rerenderTimer);
     rerender();
   },
   removeRow: i => {
     state.messpunkte.splice(i, 1);
     if (state.messpunkte.length === 0) state.messpunkte.push({ kind: 'MaLo', id: '', richtung: 'Verbrauch' });
     scheduleSave();
+    clearTimeout(_rerenderTimer);
     rerender();
   },
 };
@@ -109,12 +117,14 @@ function updateFooter(errors) {
 
 backBtn.addEventListener('click', async () => {
   clearTimeout(_saveTimer);
+  clearTimeout(_rerenderTimer);
   state.step = Math.max(1, state.step - 1);
   await saveState(state, chrome.storage);
   rerender();
 });
 nextBtn.addEventListener('click', async () => {
   clearTimeout(_saveTimer);
+  clearTimeout(_rerenderTimer);
   state.step = Math.min(3, state.step + 1);
   await saveState(state, chrome.storage);
   rerender();
