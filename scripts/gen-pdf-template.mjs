@@ -2,8 +2,9 @@
  * Generates templates/einwilligungserklaerung.pdf
  * Run: node scripts/gen-pdf-template.mjs
  *
- * Produces a fillable AcroForm PDF whose field names match those in
- * src/pdf-fill.js (OBJEKT_ADRESSE, ANSCHLUSSNUTZER_NAME, … MP_1_TYP, …).
+ * Matches the official BDEW Word doc: blue (#79C8FF) section headers,
+ * table-based layout, blue left sidebar on ESA/MSB, Messprodukten
+ * table (Code + Bezeichnung), 71pt margins.
  */
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { writeFileSync } from 'node:fs';
@@ -13,14 +14,19 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT  = resolve(ROOT, 'templates/einwilligungserklaerung.pdf');
 
-const W = 595.28, H = 841.89, M = 50;
-const PW = W - 2 * M; // printable width
+const W = 595.28, H = 841.89, M = 71;
+const PW = W - 2 * M;   // 453.28
+const SW = 8;            // sidebar width for ESA/MSB tables
+const CW = PW - SW;     // content width inside sidebar tables: 445.28
 
-const BLACK = rgb(0, 0, 0);
-const MUTED = rgb(0.45, 0.45, 0.45);
-const GRAY  = rgb(0.65, 0.65, 0.65);
-const FIELD_BG    = rgb(0.96, 0.96, 0.96);
-const SECTION_BG  = rgb(0.93, 0.93, 0.93);
+const BLACK    = rgb(0,    0,    0   );
+const MUTED    = rgb(0.27, 0.27, 0.27);
+const GRAY_LBL = rgb(0.33, 0.33, 0.33);
+const BLUE     = rgb(0.475, 0.784, 1.0);  // #79C8FF
+const FIELD_BG = rgb(0.96, 0.96, 0.96);
+const EVEN_BG  = rgb(0.95, 0.95, 0.95);
+const BORDER_C = rgb(0.67, 0.67, 0.67);
+const WHITE    = rgb(1,    1,    1   );
 
 const doc  = await PDFDocument.create();
 const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -39,141 +45,181 @@ function need(h) {
   if (y < M + h) newPage();
 }
 
-function t(str, x, yy, sz, f = font, color = BLACK) {
+function txt(str, x, yy, sz, f = font, color = BLACK) {
   page.drawText(str, { x, y: yy, size: sz, font: f, color });
 }
 
-function hline(yy, x1 = M, x2 = W - M, color = GRAY) {
-  page.drawLine({ start: { x: x1, y: yy }, end: { x: x2, y: yy }, thickness: 0.5, color });
+function box(x, yy, w, h, fill, stroke = null) {
+  page.drawRectangle({
+    x, y: yy, width: w, height: h,
+    color: fill,
+    ...(stroke ? { borderColor: stroke, borderWidth: 0.5 } : {}),
+  });
 }
 
-function section(title) {
-  need(30);
-  y -= 10;
-  page.drawRectangle({ x: M, y: y - 14, width: PW, height: 14, color: SECTION_BG });
-  t(title, M + 4, y - 10, 9, bold);
-  y -= 18;
-}
-
-function lbl(text) {
-  need(16);
-  t(text, M, y, 7.5, font, MUTED);
-  y -= 11;
-}
-
-function addField(name, x, w, h, multi = false) {
-  need(h + 4);
+function acro(name, x, yy, w, h, multi = false) {
   const f = form.createTextField(name);
   f.addToPage(page, {
-    x, y: y - h, width: w, height: h,
-    borderWidth: 0.5, borderColor: GRAY, backgroundColor: FIELD_BG,
+    x, y: yy, width: w, height: h,
+    borderWidth: 0, backgroundColor: FIELD_BG,
   });
   if (multi) f.enableMultiline();
-  y -= h + 6;
 }
 
-function fullField(name, h = 16, multi = false) {
-  addField(name, M, PW, h, multi);
+// ── Row helper ───────────────────────────────────────────────────────────────
+// cells: [{ w, fill?, text?, sz?, bold?, color?, field?, multi? }]
+function row(cells, rowH, x0 = M) {
+  need(rowH);
+  let cx = x0;
+  for (const c of cells) {
+    box(cx, y - rowH, c.w, rowH, c.fill ?? WHITE, BORDER_C);
+    if (c.text) {
+      const f   = c.bold ? bold : font;
+      const sz  = c.sz ?? 7.5;
+      const ty  = y - rowH + Math.round((rowH - sz) / 2) + 1;
+      txt(c.text, cx + 3, ty, sz, f, c.color ?? GRAY_LBL);
+    }
+    if (c.field) {
+      acro(c.field, cx + 1, y - rowH + 1, c.w - 2, rowH - 2, c.multi ?? false);
+    }
+    cx += c.w;
+  }
+  y -= rowH;
 }
 
-function halfFields(name1, lbl1, name2, lbl2) {
-  const hw = (PW - 6) / 2;
-  need(36);
-  t(lbl1, M,          y, 7.5, font, MUTED);
-  t(lbl2, M + hw + 6, y, 7.5, font, MUTED);
-  y -= 11;
-  const makeF = (nm, x) => {
-    const f = form.createTextField(nm);
-    f.addToPage(page, { x, y: y - 16, width: hw, height: 16, borderWidth: 0.5, borderColor: GRAY, backgroundColor: FIELD_BG });
-  };
-  makeF(name1, M);
-  makeF(name2, M + hw + 6);
-  y -= 22;
+// Sidebar-table row: content starts at M+SW
+function rowSB(cells, rowH) { row(cells, rowH, M + SW); }
+
+// Full-width blue section header
+const HDR_H = 15;
+function hdr(title, x0 = M, pw = PW) {
+  need(HDR_H);
+  box(x0, y - HDR_H, pw, HDR_H, BLUE, BORDER_C);
+  txt(title, x0 + 4, y - HDR_H + 4, 8.5, bold, BLACK);
+  y -= HDR_H;
+}
+
+// Blue sidebar overlay: drawn AFTER all rows of an ESA/MSB table
+function sidebar(ys) {
+  const th = ys - y;
+  if (th <= 0) return;
+  box(M, y, SW, th, BLUE, BORDER_C);
 }
 
 // ── Title ────────────────────────────────────────────────────────────────────
-need(60);
-t('Einwilligungserklärung des Anschlussnutzers', M, y, 13, bold);
-y -= 16;
-t('Übermittlung von Messprodukten durch den Messstellenbetreiber an den Energieserviceanbieter', M, y, 7.5, font, MUTED);
-y -= 10;
-t('für Messlokationen · BNetzA-Festlegung BK6-22-024 / BK6-24-174 · Version 1.2', M, y, 7.5, font, MUTED);
-y -= 8;
-hline(y, M, W - M, rgb(0.8, 0.8, 0.8));
+need(56);
+txt('Einwilligungserklärung des Anschlussnutzers zur Übermittlung von Messprodukten', M, y, 9.5, bold);
 y -= 12;
-
-// ── Objekt ───────────────────────────────────────────────────────────────────
-section('Objekt');
-lbl('Objekt-Adresse');
-fullField('OBJEKT_ADRESSE', 30, true);
+txt('durch den Messstellenbetreiber an den Energieserviceanbieter des Anschlussnutzers', M, y, 9.5, bold);
+y -= 12;
+txt('für Messlokationen', M, y, 9.5, bold);
+y -= 13;
+txt('Verarbeitung personenbezogener Daten nach § 49 Abs. 2 Nr. 7 MsbG  ·  Version 1.2  ·  Zeiträume ab 6. Juni 2025', M, y, 7.5, font, MUTED);
+y -= 9;
+page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: BORDER_C });
+y -= 10;
 
 // ── Anschlussnutzer ──────────────────────────────────────────────────────────
-section('Anschlussnutzer');
-lbl('Name / Firma');
-fullField('ANSCHLUSSNUTZER_NAME');
-lbl('Korrespondenzanschrift');
-fullField('ANSCHLUSSNUTZER_ADRESSE', 30, true);
+hdr('Anschlussnutzer');
+row([
+  { w: PW * 0.5, text: 'Nachname, Vorname bzw. Firma *' },
+  { w: PW * 0.5 },
+], 11);
+row([{ w: PW, fill: FIELD_BG, field: 'ANSCHLUSSNUTZER_NAME' }], 16);
+row([{ w: PW, text: 'Korrespondenzanschrift · Straße, Hausnummer' }], 11);
+row([{ w: PW, fill: FIELD_BG, field: 'ANSCHLUSSNUTZER_ADRESSE', multi: true }], 30);
+row([
+  { w: PW * 0.6, text: 'Postleitzahl, Ort' },
+  { w: PW * 0.4 },
+], 11);
+row([
+  { w: PW * 0.6, fill: FIELD_BG },
+  { w: PW * 0.4 },
+], 16);
+y -= 4;
 
 // ── ESA ──────────────────────────────────────────────────────────────────────
-section('Energieserviceanbieter des Anschlussnutzers (ESA)');
-lbl('Firma');
-fullField('ESA_NAME');
-lbl('Marktpartner-ID');
-addField('ESA_MARKTPARTNER_ID', M, 220, 16);
+const esa_ys = y;
+hdr('Energieserviceanbieter des Anschlussnutzers (ESA)', M + SW, CW);
+rowSB([{ w: CW, text: 'Firma *' }], 11);
+rowSB([{ w: CW, fill: FIELD_BG, field: 'ESA_NAME' }], 16);
+rowSB([
+  { w: CW * 0.55, text: 'Straße, Hausnummer · Postleitzahl, Ort' },
+  { w: CW * 0.45, text: 'MP-ID * (13-stellig)' },
+], 11);
+rowSB([
+  { w: CW * 0.55, fill: FIELD_BG },
+  { w: CW * 0.45, fill: FIELD_BG, field: 'ESA_MARKTPARTNER_ID' },
+], 16);
+sidebar(esa_ys);
+y -= 4;
 
 // ── MSB ──────────────────────────────────────────────────────────────────────
-section('Messstellenbetreiber des Anschlussnutzers (MSB)');
-lbl('Firma');
-fullField('MSB_NAME');
-lbl('Code-Nr. (MP-ID, 13-stellig)');
-addField('MSB_CODE_NR', M, 220, 16);
+const msb_ys = y;
+hdr('Messstellenbetreiber des Anschlussnutzers (MSB)', M + SW, CW);
+rowSB([{ w: CW, text: 'Firma *' }], 11);
+rowSB([{ w: CW, fill: FIELD_BG, field: 'MSB_NAME' }], 16);
+rowSB([
+  { w: CW * 0.55, text: 'Straße, Hausnummer · Postleitzahl, Ort' },
+  { w: CW * 0.45, text: 'MP-ID * (13-stellig)' },
+], 11);
+rowSB([
+  { w: CW * 0.55, fill: FIELD_BG },
+  { w: CW * 0.45, fill: FIELD_BG, field: 'MSB_CODE_NR' },
+], 16);
+sidebar(msb_ys);
+y -= 4;
 
-// ── Zeitraum ─────────────────────────────────────────────────────────────────
-section('Gültigkeitszeitraum der Einwilligung');
-halfFields('BEGINN_DATUM', 'Beginn-Datum (TT.MM.JJJJ)', 'ENDE_DATUM', 'Ende-Datum (TT.MM.JJJJ, leer = unbefristet)');
+// ── Zeitraum ──────────────────────────────────────────────────────────────────
+hdr('Gültigkeitszeitraum der Einwilligung zur Anfrage und Übermittlung von Messprodukten');
+row([
+  { w: PW * 0.25, text: 'Beginn-Datum *' },
+  { w: PW * 0.25, text: 'TT.MM.JJJJ' },
+  { w: PW * 0.25, text: 'Ende-Datum' },
+  { w: PW * 0.25, text: 'TT.MM.JJJJ' },
+], 11);
+row([
+  { w: PW * 0.5, fill: FIELD_BG, field: 'BEGINN_DATUM' },
+  { w: PW * 0.5, fill: FIELD_BG, field: 'ENDE_DATUM' },
+], 16);
+y -= 4;
 
-// ── Messpunkte ───────────────────────────────────────────────────────────────
-section('Messpunkte (Messlokationen)');
+// ── Messlokationen reference ──────────────────────────────────────────────────
+hdr('Angaben zu den Messlokationen');
+row([{
+  w: PW,
+  text: 'Die Messlokationen sind der Anlage zur Einwilligungserklärung zu entnehmen (separates Excel-Dokument).',
+  sz: 8.5, color: MUTED,
+}], 22);
+y -= 4;
 
-const COLS = [
-  { name: 'TYP',         label: 'Typ',              x: M,         w: 52  },
-  { name: 'ID',          label: 'Messlokation-ID',  x: M + 54,    w: 186 },
-  { name: 'RICHTUNG',    label: 'Lieferrichtung',   x: M + 242,   w: 78  },
-  { name: 'MESSPRODUKT', label: 'Messprodukt',      x: M + 322,   w: 173 },
-];
-const ROW_H = 14;
+// ── Messprodukten ─────────────────────────────────────────────────────────────
+const CODE_W = Math.round(PW * 0.35);
+const BEZ_W  = PW - CODE_W;
 
-// Header row
-need(ROW_H + 4);
-page.drawRectangle({ x: M, y: y - ROW_H, width: PW, height: ROW_H, color: rgb(0.82, 0.82, 0.82) });
-for (const c of COLS) t(c.label, c.x + 2, y - ROW_H + 4, 7.5, bold);
-y -= ROW_H;
-
-// Data rows 1-10
+hdr('Angaben zu den Messprodukten');
+row([
+  { w: CODE_W, text: 'Messprodukt-Code',        bold: true, sz: 8, color: GRAY_LBL },
+  { w: BEZ_W,  text: 'Messproduktcodebezeichnung *', bold: true, sz: 8, color: GRAY_LBL },
+], 13);
 for (let i = 1; i <= 10; i++) {
-  need(ROW_H + 2);
-  const even = i % 2 === 0;
-  page.drawRectangle({
-    x: M, y: y - ROW_H, width: PW, height: ROW_H,
-    color: even ? rgb(0.95, 0.95, 0.95) : rgb(1, 1, 1),
-    borderColor: rgb(0.8, 0.8, 0.8), borderWidth: 0.3,
-  });
-  for (const c of COLS) {
-    const f = form.createTextField(`MP_${i}_${c.name}`);
-    f.addToPage(page, { x: c.x + 1, y: y - ROW_H + 1, width: c.w - 2, height: ROW_H - 2, borderWidth: 0 });
-  }
-  y -= ROW_H;
+  row([
+    { w: CODE_W, fill: i % 2 === 0 ? EVEN_BG : FIELD_BG, field: `MP_${i}_CODE` },
+    { w: BEZ_W,  fill: i % 2 === 0 ? EVEN_BG : FIELD_BG, field: `MP_${i}_BEZEICHNUNG` },
+  ], 14);
 }
+y -= 10;
 
 // ── Signature ────────────────────────────────────────────────────────────────
-need(55);
-y -= 18;
-t('Hiermit willige ich in die Übermittlung meiner Daten an den ESA durch den MSB ein.', M, y, 8, font, MUTED);
+need(50);
+txt('Hiermit willige ich in die Übermittlung meiner Daten an den ESA durch den MSB ein.', M, y, 8, font, MUTED);
 y -= 28;
-hline(y, M, M + 320);
-t('Ort, Datum, Unterschrift des Anschlussnutzers', M, y + 3, 7.5, font, MUTED);
+page.drawLine({ start: { x: M, y }, end: { x: M + 300, y }, thickness: 0.5, color: BLACK });
+txt('Ort, Datum, Unterschrift des Anschlussnutzers', M, y + 3, 7.5, font, MUTED);
+y -= 12;
+txt('* Pflichtfelder', M, y, 7.5, font, MUTED);
 
-// ── Write ────────────────────────────────────────────────────────────────────
+// ── Write ─────────────────────────────────────────────────────────────────────
 const bytes = await doc.save();
 writeFileSync(OUT, bytes);
 console.log(`✓ ${OUT}`);
