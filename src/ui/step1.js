@@ -107,10 +107,11 @@ function _wireMsbNameAc(root, onChange, signal) {
         label:    c.name,
         sublabel: 'Messstellenbetreiber',
         select:   async () => {
-          onChange('msb.name', c.name);
+          // Set name immediately in both state and DOM (don't wait for rerender)
+          _setField(root, 'msb.name', c.name, onChange);
           try {
             const code = await fetchMsbCode(c.id);
-            if (code) onChange('msb.codeNr', code);
+            if (code) _setField(root, 'msb.codeNr', code, onChange);
           } catch { /* user can enter code manually */ }
         },
       }));
@@ -131,13 +132,25 @@ function _wireMsbCodeAc(root, onChange, signal) {
         label:    c.name,
         sublabel: 'Code wird geladen …',
         select:   async () => {
-          onChange('msb.name', c.name);
+          _setField(root, 'msb.name', c.name, onChange);
           try {
             const code = await fetchMsbCode(c.id);
-            if (code) onChange('msb.codeNr', code);
+            if (code) _setField(root, 'msb.codeNr', code, onChange);
           } catch { /* ignore */ }
         },
       }));
     },
   });
+}
+
+// ── helpers ────────────────────────────────────────────────────────────────
+
+/** Update state AND the live DOM input in one shot. */
+function _setField(root, id, value, onChange) {
+  onChange(id, value);
+  // querySelector targets the current DOM (which may have been rerendered);
+  // direct assignment makes the value visible immediately without waiting for
+  // the next rerender cycle.
+  const inp = root.querySelector(`[id="${id}"]`);
+  if (inp) inp.value = value;
 }
