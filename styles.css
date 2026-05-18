@@ -69,3 +69,19 @@ table.mp th, table.mp td { padding: 8px; border-bottom: 1px solid var(--border);
 }
 .modal h3 { margin-top: 0; }
 .modal details { margin-top: 12px; }
+.autocomplete-wrap { position: relative; max-width: 480px; }
+.autocomplete-wrap input { width: 100%; }
+.autocomplete-drop {
+  display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 20;
+  margin: 2px 0 0; padding: 0; list-style: none;
+  background: white; border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.10); max-height: 240px; overflow-y: auto;
+}
+.autocomplete-drop:not([hidden]) { display: block; }
+.autocomplete-drop li {
+  padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.autocomplete-drop li:last-child { border-bottom: none; }
+.autocomplete-drop li:hover,
+.autocomplete-drop li:focus { background: rgba(224, 91, 56, 0.08); outline: none; }
