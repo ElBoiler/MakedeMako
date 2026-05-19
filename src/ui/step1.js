@@ -1,13 +1,14 @@
-import { el, radioGroup }          from './render.js';
-import { acField, wireAc }          from './autocomplete.js';
-import { searchMsb, fetchMsbCode }  from '../bdew-api.js';
-import { searchAddress }            from '../nominatim-api.js';
+import { el, addressBlock, radioGroup }       from './render.js';
+import { acField, wireAc }                      from './autocomplete.js';
+import { searchMsb, fetchMsbCode }              from '../bdew-api.js';
+import { fetchAddressSuggestions }              from '../address-autocomplete.js';
 
 // Fields that manage their own onChange (on blur/select only, not on every keystroke).
 // Excluded from the generic input-delegation so that typing does NOT fire onChange
 // and trigger a rerender while the debounced search is in flight.
 const AC_FIELDS = new Set([
-  'msb.name', 'msb.codeNr', 'objekt.adresse', 'anschlussnutzer.adresse',
+  'objekt.strasse', 'anschlussnutzer.strasse',
+  'msb.name', 'msb.codeNr',
 ]);
 
 // ── Render ─────────────────────────────────────────────────────────────────
@@ -16,20 +17,28 @@ export function renderStep1(state, errors, onChange) {
   return el('section', {},
     el('h2', {}, 'Stammdaten & Messstellenbetreiber'),
 
-    acField({ id: 'objekt.adresse',           label: 'Objekt-Adresse',
-              value: state.objekt.adresse,          error: errors['objekt.adresse'],  multiline: true }),
+    addressBlock({
+      prefix: 'objekt',
+      label:  'Objekt-Adresse',
+      values: state.objekt,
+      errors,
+    }),
 
-    acField({ id: 'anschlussnutzer.name',     label: 'Anschlussnutzer (Name)',
-              value: state.anschlussnutzer.name,    error: errors['anschlussnutzer.name'] }),
+    acField({ id: 'anschlussnutzer.name', label: 'Anschlussnutzer (Name)',
+              value: state.anschlussnutzer.name, error: errors['anschlussnutzer.name'] }),
 
-    acField({ id: 'anschlussnutzer.adresse',  label: 'Anschlussnutzer (Adresse)',
-              value: state.anschlussnutzer.adresse, error: errors['anschlussnutzer.adresse'], multiline: true }),
+    addressBlock({
+      prefix: 'anschlussnutzer',
+      label:  'Anschlussnutzer (Adresse)',
+      values: state.anschlussnutzer,
+      errors,
+    }),
 
-    acField({ id: 'msb.name',                 label: 'MSB Name',
-              value: state.msb.name,                error: errors['msb.name'] }),
+    acField({ id: 'msb.name',   label: 'MSB Name',
+              value: state.msb.name,   error: errors['msb.name'] }),
 
-    acField({ id: 'msb.codeNr',               label: 'MSB Code-Nr.',
-              value: state.msb.codeNr,              error: errors['msb.codeNr'] }),
+    acField({ id: 'msb.codeNr', label: 'MSB Code-Nr.',
+              value: state.msb.codeNr, error: errors['msb.codeNr'] }),
 
     radioGroup({
       id:      'msb.knownToAdvizeo',
@@ -64,35 +73,35 @@ export function wireStep1(root, onChange, signal) {
     }
   }, { signal });
 
-  _wireAddressAc(root, 'objekt.adresse',           onChange, signal);
-  _wireAddressAc(root, 'anschlussnutzer.adresse',  onChange, signal);
+  _wireAddressAc(root, 'objekt',          onChange, signal);
+  _wireAddressAc(root, 'anschlussnutzer', onChange, signal);
   _wireMsbNameAc(root, onChange, signal);
   _wireMsbCodeAc(root, onChange, signal);
 }
 
-// ── Address autocomplete (Nominatim / OpenStreetMap) ───────────────────────
+// ── Address autocomplete (Photon / Komoot) ─────────────────────────────────
 
-function _wireAddressAc(root, fieldId, onChange, signal) {
+function _wireAddressAc(root, prefix, onChange, signal) {
   wireAc(root, {
-    id:     fieldId,
+    id:     `${prefix}.strasse`,
     signal,
-    onBlur: v => onChange(fieldId, v),
+    onBlur: v => onChange(`${prefix}.strasse`, v),
     search: async q => {
-      const results = await searchAddress(q);
+      const results = await fetchAddressSuggestions(q);
       return results.map(r => ({
-        label:    r.display.replace('\n', ', '),  // one-line label in the dropdown
+        label:    r.label,
         sublabel: null,
         select:   () => {
-          onChange(fieldId, r.display);           // textarea stores multi-line value
-          const inp = root.querySelector(`[id="${fieldId}"]`);
-          if (inp) inp.value = r.display;         // sync visible value immediately
+          _setField(root, `${prefix}.strasse`, r.strasse, onChange);
+          _setField(root, `${prefix}.plz`,     r.plz,     onChange);
+          _setField(root, `${prefix}.ort`,     r.ort,     onChange);
         },
       }));
     },
   });
 }
 
-// ── MSB name field: type name or code → fills name + code ─────────────────
+// ── MSB name field: type name or code → fills name + code + address ────────
 // The BDEW filter matches both company names and BDEW code fragments,
 // so "Netze BW" and "9903916" both return the same company.
 
@@ -105,7 +114,7 @@ function _wireMsbNameAc(root, onChange, signal) {
   });
 }
 
-// ── MSB code field: type code fragment or name → fills code + name ─────────
+// ── MSB code field: type code fragment or name → fills code + name + address
 
 function _wireMsbCodeAc(root, onChange, signal) {
   wireAc(root, {
@@ -120,7 +129,6 @@ function _wireMsbCodeAc(root, onChange, signal) {
 // Codes are resolved before the dropdown appears, so:
 //  • The sublabel shows the actual code (or "Kein MSB-Code")
 //  • Selection is instant — no second async hop needed
-//  • Non-MSB companies are clearly labelled
 
 async function _msbSearch(root, q, onChange) {
   const companies = await searchMsb(q);
@@ -136,6 +144,9 @@ async function _msbSearch(root, q, onChange) {
     select:   () => {
       _setField(root, 'msb.name',   c.name,   onChange);
       if (codes[i]) _setField(root, 'msb.codeNr', codes[i], onChange);
+      if (c.strasse) _setField(root, 'msb.strasse', c.strasse, onChange);
+      if (c.plz)     _setField(root, 'msb.plz',     c.plz,     onChange);
+      if (c.ort)     _setField(root, 'msb.ort',     c.ort,     onChange);
     },
   }));
 }
@@ -145,9 +156,6 @@ async function _msbSearch(root, q, onChange) {
 /** Update state AND the live DOM input in one shot. */
 function _setField(root, id, value, onChange) {
   onChange(id, value);
-  // querySelector targets the current DOM (which may have been rerendered);
-  // direct assignment makes the value visible immediately without waiting for
-  // the next rerender cycle.
   const inp = root.querySelector(`[id="${id}"]`);
   if (inp) inp.value = value;
 }

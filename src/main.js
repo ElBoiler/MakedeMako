@@ -157,13 +157,18 @@ function toTemplateData(s) {
   }
 
   return {
-    OBJEKT_ADRESSE:          s.objekt.adresse,
-    ANSCHLUSSNUTZER_NAME:    s.anschlussnutzer.name,
-    ANSCHLUSSNUTZER_ADRESSE: s.anschlussnutzer.adresse,
-    MSB_NAME:                s.msb.name,
-    MSB_CODE_NR:             s.msb.codeNr,
-    ESA_NAME:                s.esa.name,
-    ESA_MARKTPARTNER_ID:     s.esa.marktpartnerId,
+    OBJEKT_ADRESSE:             `${s.objekt.strasse}\n${s.objekt.plz} ${s.objekt.ort}`.trim(),
+    ANSCHLUSSNUTZER_NAME:       s.anschlussnutzer.name,
+    ANSCHLUSSNUTZER_STRASSE:    s.anschlussnutzer.strasse,
+    ANSCHLUSSNUTZER_PLZ_ORT:    `${s.anschlussnutzer.plz} ${s.anschlussnutzer.ort}`.trim(),
+    MSB_NAME:                   s.msb.name,
+    MSB_CODE_NR:                s.msb.codeNr,
+    MSB_STRASSE:                s.msb.strasse,
+    MSB_PLZ_ORT:                `${s.msb.plz} ${s.msb.ort}`.trim(),
+    ESA_NAME:                   s.esa.name,
+    ESA_STRASSE:                'Zum Gunterstal 6',
+    ESA_PLZ_ORT:                '66440 Blieskastel',
+    ESA_MARKTPARTNER_ID:        s.esa.marktpartnerId,
     BEGINN_DATUM:            germanDate(s.beginnDatum),
     ENDE_DATUM:              s.endeDatum ? germanDate(s.endeDatum) : 'offen',
     MESSPUNKTE: s.messpunkte.map(row => ({

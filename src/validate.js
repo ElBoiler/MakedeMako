@@ -1,11 +1,19 @@
 const TEXT = s => String(s ?? '').trim();
+function plz(val) { return /^\d{5}$/.test(TEXT(val)); }
 
 export function validate(form, today = new Date()) {
   const e = {};
-  if (!TEXT(form.objekt?.adresse)) e['objekt.adresse'] = 'Pflichtfeld';
-  if (!TEXT(form.anschlussnutzer?.name)) e['anschlussnutzer.name'] = 'Pflichtfeld';
-  if (!TEXT(form.anschlussnutzer?.adresse)) e['anschlussnutzer.adresse'] = 'Pflichtfeld';
-  if (!TEXT(form.msb?.name)) e['msb.name'] = 'Pflichtfeld';
+
+  if (!TEXT(form.objekt?.strasse))           e['objekt.strasse'] = 'Pflichtfeld';
+  if (!plz(form.objekt?.plz))                e['objekt.plz']     = 'PLZ muss 5 Ziffern haben';
+  if (!TEXT(form.objekt?.ort))               e['objekt.ort']     = 'Pflichtfeld';
+
+  if (!TEXT(form.anschlussnutzer?.name))     e['anschlussnutzer.name']    = 'Pflichtfeld';
+  if (!TEXT(form.anschlussnutzer?.strasse))  e['anschlussnutzer.strasse'] = 'Pflichtfeld';
+  if (!plz(form.anschlussnutzer?.plz))       e['anschlussnutzer.plz']     = 'PLZ muss 5 Ziffern haben';
+  if (!TEXT(form.anschlussnutzer?.ort))      e['anschlussnutzer.ort']     = 'Pflichtfeld';
+
+  if (!TEXT(form.msb?.name))                 e['msb.name'] = 'Pflichtfeld';
 
   const code = TEXT(form.msb?.codeNr);
   if (!/^\d{13}$/.test(code)) e['msb.codeNr'] = 'Code-Nr. muss 13 Ziffern haben';
@@ -46,7 +54,7 @@ export function validate(form, today = new Date()) {
   if (ende) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(ende)) {
       e['endeDatum'] = 'Ungültiges Datum';
-    } else if (beginn && new Date(ende) <= new Date(beginn)) {
+    } else if (beginn && ende <= beginn) {
       e['endeDatum'] = 'Ende muss nach Beginn liegen';
     }
   }

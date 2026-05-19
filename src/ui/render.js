@@ -41,6 +41,41 @@ export function radioGroup({ id, label, options, value, error, helper }) {
   );
 }
 
+/**
+ * Render a three-field address block (Straße, PLZ, Ort) with autocomplete drop.
+ * @param {{ prefix: string, label: string, values: object, errors: object }} opts
+ */
+export function addressBlock({ prefix, label, values, errors }) {
+  const strId = `${prefix}.strasse`;
+  const plzId = `${prefix}.plz`;
+  const ortId = `${prefix}.ort`;
+  const dropId = strId.replace(/\./g, '-') + '-drop';  // matches wireAc _dropId()
+
+  return el('div', { class: 'address-block' },
+    el('label', {}, label),
+    el('div', { class: 'autocomplete-wrap' },
+      el('input', { id: strId, type: 'text', value: values.strasse ?? '', autocomplete: 'off',
+        ...(errors[strId] ? { class: 'invalid' } : {}) }),
+      el('ul', { id: dropId, class: 'autocomplete-drop', role: 'listbox' }),
+    ),
+    errors[strId] ? el('div', { class: 'field-error' }, errors[strId]) : null,
+    el('div', { class: 'addr-row2' },
+      el('div', {},
+        el('label', { for: plzId }, 'PLZ'),
+        el('input', { id: plzId, type: 'text', value: values.plz ?? '', style: 'width: 6em',
+          ...(errors[plzId] ? { class: 'invalid' } : {}) }),
+        errors[plzId] ? el('div', { class: 'field-error' }, errors[plzId]) : null,
+      ),
+      el('div', { style: 'flex: 1' },
+        el('label', { for: ortId }, 'Ort'),
+        el('input', { id: ortId, type: 'text', value: values.ort ?? '',
+          ...(errors[ortId] ? { class: 'invalid' } : {}) }),
+        errors[ortId] ? el('div', { class: 'field-error' }, errors[ortId]) : null,
+      ),
+    ),
+  );
+}
+
 export function renderStepNav(currentStep, errorsByStep) {
   const nav = document.getElementById('stepNav');
   for (const li of nav.querySelectorAll('li')) {

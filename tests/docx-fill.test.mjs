@@ -5,7 +5,9 @@ import { resolve } from 'node:path';
 import PizZip from 'pizzip';
 import { fillDocx } from '../src/docx-fill.js';
 
-const TEMPLATE = resolve('templates/einwilligungserklaerung.docx');
+// The official BDEW docx has no template tags and is downloaded as-is.
+// This fixture is a minimal docx with template placeholders for unit-testing fillDocx.
+const TEMPLATE = resolve('tests/fixtures/test-template.docx');
 
 const DATA = {
   OBJEKT_ADRESSE: 'Hauptstr. 1, 10115 Berlin',

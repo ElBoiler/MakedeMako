@@ -12,9 +12,9 @@ export function defaultState(today = new Date()) {
     today.getUTCFullYear() - 3, today.getUTCMonth(), today.getUTCDate()
   ));
   return {
-    objekt: { adresse: '' },
-    anschlussnutzer: { name: '', adresse: '' },
-    msb: { name: '', codeNr: '', knownToAdvizeo: null },
+    objekt: { strasse: '', plz: '', ort: '' },
+    anschlussnutzer: { name: '', strasse: '', plz: '', ort: '' },
+    msb: { name: '', codeNr: '', strasse: '', plz: '', ort: '', knownToAdvizeo: null },
     messpunkte: [{ kind: 'MaLo', id: '', richtung: 'Verbrauch' }],
     beginnDatum: isoDate(threeYearsAgo),
     endeDatum: '',

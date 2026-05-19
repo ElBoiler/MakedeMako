@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { validate } from '../src/validate.js';
 
 const GOOD = {
-  objekt: { adresse: 'Hauptstr. 1, 10115 Berlin' },
-  anschlussnutzer: { name: 'Müller GmbH', adresse: 'Musterweg 5' },
+  objekt: { strasse: 'Hauptstr. 1', plz: '10115', ort: 'Berlin' },
+  anschlussnutzer: { name: 'Müller GmbH', strasse: 'Musterweg 5', plz: '12345', ort: 'Musterstadt' },
   msb: { name: 'Stromnetz Berlin', codeNr: '9900290000003', knownToAdvizeo: true },
   messpunkte: [
     { kind: 'MaLo', id: '12345678901', richtung: 'Verbrauch' },
@@ -17,10 +17,40 @@ test('good input → no errors', () => {
   assert.deepEqual(validate(GOOD), {});
 });
 
-test('empty Objekt adresse → error', () => {
+test('empty Objekt strasse → error', () => {
   const bad = structuredClone(GOOD);
-  bad.objekt.adresse = '   ';
-  assert.equal(validate(bad)['objekt.adresse'], 'Pflichtfeld');
+  bad.objekt.strasse = '   ';
+  assert.equal(validate(bad)['objekt.strasse'], 'Pflichtfeld');
+});
+
+test('invalid Objekt PLZ → error', () => {
+  const bad = structuredClone(GOOD);
+  bad.objekt.plz = '1234';
+  assert.equal(validate(bad)['objekt.plz'], 'PLZ muss 5 Ziffern haben');
+});
+
+test('empty Objekt ort → error', () => {
+  const bad = structuredClone(GOOD);
+  bad.objekt.ort = '';
+  assert.equal(validate(bad)['objekt.ort'], 'Pflichtfeld');
+});
+
+test('empty Anschlussnutzer strasse → error', () => {
+  const bad = structuredClone(GOOD);
+  bad.anschlussnutzer.strasse = '';
+  assert.equal(validate(bad)['anschlussnutzer.strasse'], 'Pflichtfeld');
+});
+
+test('invalid Anschlussnutzer PLZ → error', () => {
+  const bad = structuredClone(GOOD);
+  bad.anschlussnutzer.plz = 'ABCDE';
+  assert.equal(validate(bad)['anschlussnutzer.plz'], 'PLZ muss 5 Ziffern haben');
+});
+
+test('empty Anschlussnutzer ort → error', () => {
+  const bad = structuredClone(GOOD);
+  bad.anschlussnutzer.ort = '';
+  assert.equal(validate(bad)['anschlussnutzer.ort'], 'Pflichtfeld');
 });
 
 test('non-13-digit Code-Nr → error', () => {
@@ -83,4 +113,10 @@ test('Ende-Datum blank → ok', () => {
   const ok = structuredClone(GOOD);
   ok.endeDatum = '';
   assert.equal(validate(ok)['endeDatum'], undefined);
+});
+
+test('Ende-Datum same as Beginn-Datum → error', () => {
+  const bad = structuredClone(GOOD);
+  bad.endeDatum = bad.beginnDatum;
+  assert.equal(validate(bad)['endeDatum'], 'Ende muss nach Beginn liegen');
 });

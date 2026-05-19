@@ -8,7 +8,7 @@
   "permissions": ["downloads", "storage"],
   "host_permissions": [
     "https://bdew-codes.de/*",
-    "https://nominatim.openstreetmap.org/*"
+    "https://photon.komoot.io/*"
   ],
   "background": {
     "service_worker": "background.js",

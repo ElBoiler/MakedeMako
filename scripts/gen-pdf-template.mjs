@@ -275,9 +275,10 @@ drawRow([
 // R4: Straße input
 drawRow([
   { w: LBL },
-  { w: FLD, fieldName: 'ANSCHLUSSNUTZER_ADRESSE' },
+  { w: KOR_S, fieldName: 'ANSCHLUSSNUTZER_STRASSE' },
+  { w: KOR_P, fieldName: 'ANSCHLUSSNUTZER_PLZ_ORT' },
 ], RH);
-// R5: PLZ/Ort input (no separate field — visual placeholder)
+// R5: empty row (layout spacer matching Word doc)
 drawRow([{ w: LBL }, { w: FLD }], RH);
 y -= 4;
 
@@ -292,12 +293,12 @@ drawRowSB([
 ], RH);
 drawRowSB([
   { w: ESA_LBL, text: 'Straße, Hausnummer', sz: SZ_S, color: MUTED },
-  { w: ESA_FLD },
-], HINT);
+  { w: ESA_FLD, fieldName: 'ESA_STRASSE' },
+], RH);
 drawRowSB([
   { w: ESA_LBL, text: 'Postleitzahl, Ort', sz: SZ_S, color: MUTED },
-  { w: ESA_FLD },
-], HINT);
+  { w: ESA_FLD, fieldName: 'ESA_PLZ_ORT' },
+], RH);
 drawRowSB([
   { w: ESA_LBL, text: 'MP-ID * (13-stellig)', sz: SZ_S, color: MUTED },
   { w: ESA_FLD, fieldName: 'ESA_MARKTPARTNER_ID' },
@@ -315,12 +316,12 @@ drawRowSB([
 ], RH);
 drawRowSB([
   { w: ESA_LBL, text: 'Straße, Hausnummer', sz: SZ_S, color: MUTED },
-  { w: ESA_FLD },
-], HINT);
+  { w: ESA_FLD, fieldName: 'MSB_STRASSE' },
+], RH);
 drawRowSB([
   { w: ESA_LBL, text: 'Postleitzahl, Ort', sz: SZ_S, color: MUTED },
-  { w: ESA_FLD },
-], HINT);
+  { w: ESA_FLD, fieldName: 'MSB_PLZ_ORT' },
+], RH);
 drawRowSB([
   { w: ESA_LBL, text: 'MP-ID * (13-stellig)', sz: SZ_S, color: MUTED },
   { w: ESA_FLD, fieldName: 'MSB_CODE_NR' },

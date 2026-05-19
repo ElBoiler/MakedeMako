@@ -27,7 +27,13 @@ export async function searchMsb(query) {
   );
   if (!res.ok) throw new Error('BDEW-Suche fehlgeschlagen');
   const data = await res.json();
-  return (data.Records ?? []).map(r => ({ id: r.Id, name: r.Company.trim() }));
+  return (data.Records ?? []).map(r => ({
+    id:     r.Id,
+    name:   r.Company.trim(),
+    strasse: (r.Street   ?? '').trim(),
+    plz:    (r.ZipCode   ?? '').trim(),
+    ort:    (r.City      ?? '').trim(),
+  }));
 }
 
 // ── Code lookup ────────────────────────────────────────────────────────────
