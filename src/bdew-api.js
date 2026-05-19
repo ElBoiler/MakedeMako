@@ -46,8 +46,26 @@ export async function fetchMsbCode(companyId) {
       body:    'jtStartIndex=0&jtPageSize=50',
     },
   );
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.warn('[bdew] fetchMsbCode HTTP', res.status, 'for companyId', companyId);
+    return null;
+  }
   const data = await res.json();
-  const msb  = (data.Records ?? []).find(r => r.MarketFunctionName === 'Messstellenbetreiber');
-  return msb?.BdewCode ?? null;
+  const records = data.Records ?? [];
+
+  // Prefer the explicit Messstellenbetreiber role; fall back to first available code.
+  // (Some companies are listed without an explicit role label — their one BdewCode
+  //  is the MSB code regardless of what MarketFunctionName says.)
+  const msb = records.find(r => r.MarketFunctionName?.trim() === 'Messstellenbetreiber')
+    ?? records[0];
+
+  if (!msb) {
+    console.warn('[bdew] no BDEW records for companyId', companyId, data);
+    return null;
+  }
+  if (!msb.BdewCode) {
+    console.warn('[bdew] record has no BdewCode for companyId', companyId, msb);
+    return null;
+  }
+  return msb.BdewCode;
 }
