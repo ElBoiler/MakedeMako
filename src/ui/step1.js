@@ -101,21 +101,7 @@ function _wireMsbNameAc(root, onChange, signal) {
     id:     'msb.name',
     signal,
     onBlur: v => onChange('msb.name', v),
-    search: async q => {
-      const companies = await searchMsb(q);
-      return companies.map(c => ({
-        label:    c.name,
-        sublabel: 'Messstellenbetreiber',
-        select:   async () => {
-          // Set name immediately in both state and DOM (don't wait for rerender)
-          _setField(root, 'msb.name', c.name, onChange);
-          try {
-            const code = await fetchMsbCode(c.id);
-            if (code) _setField(root, 'msb.codeNr', code, onChange);
-          } catch { /* user can enter code manually */ }
-        },
-      }));
-    },
+    search:  q => _msbSearch(root, q, onChange),
   });
 }
 
@@ -126,21 +112,32 @@ function _wireMsbCodeAc(root, onChange, signal) {
     id:     'msb.codeNr',
     signal,
     onBlur: v => onChange('msb.codeNr', v),
-    search: async q => {
-      const companies = await searchMsb(q);
-      return companies.map(c => ({
-        label:    c.name,
-        sublabel: 'Code wird geladen …',
-        select:   async () => {
-          _setField(root, 'msb.name', c.name, onChange);
-          try {
-            const code = await fetchMsbCode(c.id);
-            if (code) _setField(root, 'msb.codeNr', code, onChange);
-          } catch { /* ignore */ }
-        },
-      }));
-    },
+    search:  q => _msbSearch(root, q, onChange),
   });
+}
+
+// ── shared MSB search — pre-fetches codes in parallel ──────────────────────
+// Codes are resolved before the dropdown appears, so:
+//  • The sublabel shows the actual code (or "Kein MSB-Code")
+//  • Selection is instant — no second async hop needed
+//  • Non-MSB companies are clearly labelled
+
+async function _msbSearch(root, q, onChange) {
+  const companies = await searchMsb(q);
+
+  // Fetch all codes in parallel; individual failures default to null
+  const codes = await Promise.all(
+    companies.map(c => fetchMsbCode(c.id).catch(() => null)),
+  );
+
+  return companies.map((c, i) => ({
+    label:    c.name,
+    sublabel: codes[i] ?? 'Kein MSB-Code',
+    select:   () => {
+      _setField(root, 'msb.name',   c.name,   onChange);
+      if (codes[i]) _setField(root, 'msb.codeNr', codes[i], onChange);
+    },
+  }));
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────
