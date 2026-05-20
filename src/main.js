@@ -6,7 +6,6 @@ import { renderStep2 } from './ui/step2.js';
 import { renderStep3, wireStep3 } from './ui/step3.js';
 import { fillDocx } from './docx-fill.js';
 import { fillPdf } from './pdf-fill.js';
-import { fillXlsx } from './xlsx-fill.js';
 import { fillAnlage } from './anlage-fill.js';
 import { buildEml } from './eml-build.js';
 import { downloadBundle } from './download.js';
@@ -158,13 +157,16 @@ function toTemplateData(s) {
 
   return {
     OBJEKT_ADRESSE:             `${s.objekt.strasse}\n${s.objekt.plz} ${s.objekt.ort}`.trim(),
+    OBJEKT_STRASSE:             s.objekt.strasse,
+    OBJEKT_PLZ:                 s.objekt.plz,
+    OBJEKT_ORT:                 s.objekt.ort,
     ANSCHLUSSNUTZER_NAME:       s.anschlussnutzer.name,
     ANSCHLUSSNUTZER_STRASSE:    s.anschlussnutzer.strasse,
-    ANSCHLUSSNUTZER_PLZ_ORT:    `${s.anschlussnutzer.plz} ${s.anschlussnutzer.ort}`.trim(),
+    ANSCHLUSSNUTZER_PLZ_ORT:    [s.anschlussnutzer.plz, s.anschlussnutzer.ort].filter(Boolean).join(' '),
     MSB_NAME:                   s.msb.name,
     MSB_CODE_NR:                s.msb.codeNr,
     MSB_STRASSE:                s.msb.strasse,
-    MSB_PLZ_ORT:                `${s.msb.plz} ${s.msb.ort}`.trim(),
+    MSB_PLZ_ORT:                [s.msb.plz, s.msb.ort].filter(Boolean).join(' '),
     ESA_NAME:                   s.esa.name,
     ESA_STRASSE:                'Zum Gunterstal 6',
     ESA_PLZ_ORT:                '66440 Blieskastel',
@@ -203,7 +205,7 @@ async function generate() {
   const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
   try {
-    // Word doc (official BDEW form, no template tags → downloaded as-is)
+    // Word doc (BDEW form with {TAG} placeholders injected by scripts/instrument-docx.mjs)
     const docxTpl = await fetchTemplate('templates/einwilligungserklaerung.docx');
     const docxBytes = fillDocx(docxTpl, data);
     files.push({ name: `${fileBase}.docx`, bytes: docxBytes, mime: DOCX_MIME });
@@ -213,22 +215,26 @@ async function generate() {
     const pdfBytes = await fillPdf(pdfTpl, data);
     files.push({ name: `${fileBase}.pdf`, bytes: pdfBytes, mime: 'application/pdf' });
 
+    // Open PDF preview in new browser tab
+    const pdfPreviewUrl = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+    window.open(pdfPreviewUrl, '_blank');
+
     // Anlage (Messlokationen list) — always included
     const anlageTpl = await fetchTemplate('templates/anlage-messlokationen.xlsx');
     const anlageBytes = new Uint8Array(await fillAnlage(anlageTpl, data));
     files.push({ name: `Anlage_Messlokationen_${slug(state.anschlussnutzer.name)}.xlsx`, bytes: anlageBytes, mime: XLSX_MIME });
 
     if (state.msb.knownToAdvizeo === false) {
-      const xlsxTpl = await fetchTemplate('templates/kontaktdatenblatt.xlsx');
-      const xlsxBytes = new Uint8Array(await fillXlsx(xlsxTpl, data));
-      files.push({ name: 'Kontaktdatenblatt.xlsx', bytes: xlsxBytes, mime: XLSX_MIME });
+      // Kontaktdatenblatt is a static pre-filled file — download as-is
+      const kontaktBytes = await fetchTemplate('templates/kontaktdatenblatt.xlsx');
+      files.push({ name: 'Kontaktdatenblatt.xlsx', bytes: kontaktBytes, mime: XLSX_MIME });
 
       const eml = buildEml({
         subject: SUBJECT,
         bodyLines: BODY_LINES,
         headers: { 'X-Unsent': '1' },
         attachments: [
-          { name: 'Kontaktdatenblatt.xlsx', contentType: XLSX_MIME, bytes: xlsxBytes },
+          { name: 'Kontaktdatenblatt.xlsx', contentType: XLSX_MIME, bytes: kontaktBytes },
           { name: `${fileBase}.pdf`,        contentType: 'application/pdf', bytes: pdfBytes },
         ],
       });

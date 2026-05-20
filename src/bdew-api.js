@@ -39,9 +39,9 @@ export async function searchMsb(query) {
 // ── Code lookup ────────────────────────────────────────────────────────────
 
 /**
- * Fetch the Messstellenbetreiber BDEW code for a given company.
+ * Fetch the Messstellenbetreiber BDEW code and record ID for a given company.
  * @param {number} companyId  — the `id` field from searchMsb()
- * @returns {Promise<string|null>}  BDEW code string or null if company has no MSB role
+ * @returns {Promise<{ code: string, recordId: number } | null>}  null if no MSB role
  */
 export async function fetchMsbCode(companyId) {
   const res = await fetch(
@@ -59,19 +59,36 @@ export async function fetchMsbCode(companyId) {
   const data = await res.json();
   const records = data.Records ?? [];
 
-  // Prefer the explicit Messstellenbetreiber role; fall back to first available code.
-  // (Some companies are listed without an explicit role label — their one BdewCode
-  //  is the MSB code regardless of what MarketFunctionName says.)
-  const msb = records.find(r => r.MarketFunctionName?.trim() === 'Messstellenbetreiber')
-    ?? records[0];
+  const msb = records.find(r => r.MarketFunctionName?.trim() === 'Messstellenbetreiber');
+  if (!msb?.BdewCode) return null;
+  return { code: msb.BdewCode, recordId: msb.Id };
+}
 
-  if (!msb) {
-    console.warn('[bdew] no BDEW records for companyId', companyId, data);
-    return null;
+/**
+ * Fetch address details for a specific BDEW code record.
+ * The endpoint returns HTML — parse with DOMParser.
+ * @param {number} bdewId  — the record `Id` from fetchMsbCode()
+ * @returns {Promise<{ strasse: string, plz: string, ort: string }>}
+ */
+export async function fetchMsbDetail(bdewId) {
+  const res = await fetch(`${BASE}/BdewCodeDetailInfo?bdewId=${bdewId}`);
+  if (!res.ok) return { strasse: '', plz: '', ort: '' };
+  const html = await res.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  function getValue(labelPrefix) {
+    for (const label of doc.querySelectorAll('label')) {
+      if (label.textContent.trim().startsWith(labelPrefix)) {
+        const val = label.closest('td')?.nextElementSibling;
+        return val?.querySelector('div')?.textContent.trim() ?? '';
+      }
+    }
+    return '';
   }
-  if (!msb.BdewCode) {
-    console.warn('[bdew] record has no BdewCode for companyId', companyId, msb);
-    return null;
-  }
-  return msb.BdewCode;
+
+  return {
+    strasse: getValue('Straße'),  // "Straße und Hausnummer"
+    plz:     getValue('PLZ'),
+    ort:     getValue('Stadt'),
+  };
 }

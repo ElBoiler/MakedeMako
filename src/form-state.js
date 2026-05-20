@@ -25,8 +25,18 @@ export function defaultState(today = new Date()) {
 
 export async function loadState(storage = chrome.storage, today = new Date()) {
   const { [KEY]: stored } = await storage.local.get(KEY);
-  if (!stored) return defaultState(today);
-  return { ...defaultState(today), ...stored };
+  const def = defaultState(today);
+  if (!stored) return def;
+  // Deep-merge nested objects so new fields added to defaultState are never lost
+  // when a stored state from an older version is loaded.
+  return {
+    ...def,
+    ...stored,
+    objekt:          { ...def.objekt,          ...(stored.objekt          ?? {}) },
+    anschlussnutzer: { ...def.anschlussnutzer, ...(stored.anschlussnutzer ?? {}) },
+    msb:             { ...def.msb,             ...(stored.msb             ?? {}) },
+    esa:             { ...def.esa,             ...(stored.esa             ?? {}) },
+  };
 }
 
 export async function saveState(state, storage = chrome.storage) {

@@ -1,13 +1,13 @@
-import { el, addressBlock, radioGroup }       from './render.js';
+import { el, addressBlock, field, radioGroup } from './render.js';
 import { acField, wireAc }                      from './autocomplete.js';
-import { searchMsb, fetchMsbCode }              from '../bdew-api.js';
+import { searchMsb, fetchMsbCode, fetchMsbDetail } from '../bdew-api.js';
 import { fetchAddressSuggestions }              from '../address-autocomplete.js';
 
 // Fields that manage their own onChange (on blur/select only, not on every keystroke).
 // Excluded from the generic input-delegation so that typing does NOT fire onChange
 // and trigger a rerender while the debounced search is in flight.
 const AC_FIELDS = new Set([
-  'objekt.strasse', 'anschlussnutzer.strasse',
+  'objekt.strasse', 'anschlussnutzer.strasse', 'msb.strasse',
   'msb.name', 'msb.codeNr',
 ]);
 
@@ -39,6 +39,13 @@ export function renderStep1(state, errors, onChange) {
 
     acField({ id: 'msb.codeNr', label: 'MSB Code-Nr.',
               value: state.msb.codeNr, error: errors['msb.codeNr'] }),
+
+    addressBlock({
+      prefix: 'msb',
+      label:  'MSB Adresse',
+      values: state.msb,
+      errors,
+    }),
 
     radioGroup({
       id:      'msb.knownToAdvizeo',
@@ -75,6 +82,7 @@ export function wireStep1(root, onChange, signal) {
 
   _wireAddressAc(root, 'objekt',          onChange, signal);
   _wireAddressAc(root, 'anschlussnutzer', onChange, signal);
+  _wireAddressAc(root, 'msb',             onChange, signal);
   _wireMsbNameAc(root, onChange, signal);
   _wireMsbCodeAc(root, onChange, signal);
 }
@@ -133,20 +141,30 @@ function _wireMsbCodeAc(root, onChange, signal) {
 async function _msbSearch(root, q, onChange) {
   const companies = await searchMsb(q);
 
-  // Fetch all codes in parallel; individual failures default to null
-  const codes = await Promise.all(
+  // Fetch MSB records in parallel; null means company has no Messstellenbetreiber role
+  const records = await Promise.all(
     companies.map(c => fetchMsbCode(c.id).catch(() => null)),
   );
 
-  return companies.map((c, i) => ({
+  // Filter to companies with a Messstellenbetreiber role only
+  const msb = companies
+    .map((c, i) => ({ c, rec: records[i] }))
+    .filter(({ rec }) => rec !== null);
+
+  // Fetch address details for each valid MSB record in parallel
+  const details = await Promise.all(
+    msb.map(({ rec }) => fetchMsbDetail(rec.recordId).catch(() => ({ strasse: '', plz: '', ort: '' }))),
+  );
+
+  return msb.map(({ c, rec }, i) => ({
     label:    c.name,
-    sublabel: codes[i] ?? 'Kein MSB-Code',
+    sublabel: rec.code,
     select:   () => {
-      _setField(root, 'msb.name',   c.name,   onChange);
-      if (codes[i]) _setField(root, 'msb.codeNr', codes[i], onChange);
-      if (c.strasse) _setField(root, 'msb.strasse', c.strasse, onChange);
-      if (c.plz)     _setField(root, 'msb.plz',     c.plz,     onChange);
-      if (c.ort)     _setField(root, 'msb.ort',     c.ort,     onChange);
+      _setField(root, 'msb.name',    c.name,              onChange);
+      _setField(root, 'msb.codeNr',  rec.code,            onChange);
+      _setField(root, 'msb.strasse', details[i].strasse,  onChange);
+      _setField(root, 'msb.plz',     details[i].plz,      onChange);
+      _setField(root, 'msb.ort',     details[i].ort,      onChange);
     },
   }));
 }

@@ -22,9 +22,9 @@ const OUT  = resolve(ROOT, 'templates/einwilligungserklaerung.pdf');
 const W = 595.28, H = 841.89;
 const ML = 70.9, MT = 70.9, MB = 56.7;   // left/top/bottom margins
 
-// Standard table geometry (8789 dxa, indent 137 dxa)
-const TX = ML + 6.85;   // 77.75pt table x-origin
-const TW = 439.5;        // table width
+// Standard table geometry — full width, same as ESA/MSB
+const TX = ML;           // 70.9pt table x-origin
+const TW = 446.6;        // table width (matches SW)
 
 // ESA/MSB table geometry (8931 dxa, no indent)
 const SX = ML;           // 70.9pt
@@ -41,9 +41,7 @@ const KOR_P = TW - LBL - KOR_S;  // 209.4pt "PLZ, Ort" (4187 dxa)
 
 // ESA/MSB column widths
 const ESA_LBL = 119.6;            // label  (2392 dxa)
-const ESA_FLD = SW - SB - ESA_LBL; // 319.0pt field (6379 dxa)
-const ESA_H1  = 297.1;            // header part 1 (5942 dxa)
-const ESA_H2  = SW - SB - ESA_H1; // 141.5pt header part 2 (2829 dxa)
+const ESA_FLD = SW - ESA_LBL;    // 327.0pt field (spans full table, no sidebar)
 
 // Messprodukten column widths
 const MP_C = 92.15;              // code  (1843 dxa)
@@ -56,7 +54,7 @@ const HDR  = 16;   // blue section header
 const HINT = 14;   // hint / sub-label row
 
 // ── Font sizes ─────────────────────────────────────────────────────────────────
-const SZ   = 10.5; // body text (sz=21 half-points in Word)
+const SZ   = 8.5;  // body text — matches table label size
 const SZ_S = 8.5;  // small label / hint text inside cells
 
 // ── Colors ─────────────────────────────────────────────────────────────────────
@@ -127,6 +125,7 @@ function acro(name, x, yy, w, h, multi = false) {
     x: x + 1, y: yy + 1, width: w - 2, height: h - 2,
     borderWidth: 0, backgroundColor: FIELD,
   });
+  f.setFontSize(SZ_S);
   if (multi) f.enableMultiline();
 }
 
@@ -183,14 +182,11 @@ function drawRow(cells, rowH, x0 = TX) {
   y -= rowH;
 }
 
-// ESA/MSB table row: blue sidebar cell + content cells
+// ESA/MSB table row (no sidebar, cells span full SW width from SX)
 function drawRowSB(cells, rowH) {
   need(rowH);
   const top = y;
-  // Blue sidebar cell (no right/inner border)
-  box(SX, top - rowH, SB, rowH, BLUE, BORDER);
-  // Content cells
-  let cx = SX + SB;
+  let cx = SX;
   for (const c of cells) {
     box(cx, top - rowH, c.w, rowH, c.fill ?? WHITE, BORDER);
     if (c.text) {
@@ -218,16 +214,13 @@ function hdr(title, x0 = TX, w = TW) {
   y -= HDR;
 }
 
-// Blue section header for ESA/MSB table (sidebar + two header cells)
+// Blue section header for ESA/MSB table (single full-width header, no sidebar)
 function hdrSB(title) {
-  const sz = bold.widthOfTextAtSize(title, SZ_S) < (ESA_H1 + ESA_H2 - 7) ? SZ_S : SZ_S - 1;
+  const sz = bold.widthOfTextAtSize(title, SZ_S) < (SW - 7) ? SZ_S : SZ_S - 1;
   need(HDR);
-  const top = y;
-  box(SX,          top - HDR, SB,    HDR, BLUE, BORDER);
-  box(SX + SB,     top - HDR, ESA_H1, HDR, BLUE, BORDER);
-  box(SX + SB + ESA_H1, top - HDR, ESA_H2, HDR, BLUE, BORDER);
-  const ty = top - HDR + (HDR - sz) / 2 + 0.5;
-  txt(title, SX + SB + 3.5, ty, sz, bold, BLACK);
+  box(SX, y - HDR, SW, HDR, BLUE, BORDER);
+  const ty = y - HDR + (HDR - sz) / 2 + 0.5;
+  txt(title, SX + 3.5, ty, sz, bold, BLACK);
   y -= HDR;
 }
 
@@ -280,7 +273,7 @@ drawRow([
 ], RH);
 // R5: empty row (layout spacer matching Word doc)
 drawRow([{ w: LBL }, { w: FLD }], RH);
-y -= 4;
+y -= 10;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TABLE 2 — ESA  (8931 dxa, no indent, blue sidebar)
@@ -303,7 +296,7 @@ drawRowSB([
   { w: ESA_LBL, text: 'MP-ID * (13-stellig)', sz: SZ_S, color: MUTED },
   { w: ESA_FLD, fieldName: 'ESA_MARKTPARTNER_ID' },
 ], RH);
-y -= 4;
+y -= 10;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TABLE 3 — MSB  (same geometry as ESA)
@@ -326,7 +319,7 @@ drawRowSB([
   { w: ESA_LBL, text: 'MP-ID * (13-stellig)', sz: SZ_S, color: MUTED },
   { w: ESA_FLD, fieldName: 'MSB_CODE_NR' },
 ], RH);
-y -= 4;
+y -= 10;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TABLE 4 — ZEITRAUM  (3 rows: header + Beginn + Ende)
@@ -342,7 +335,7 @@ drawRow([
   { w: LBL, text: 'Ende-Datum', sz: SZ_S, color: MUTED },
   { w: FLD, fieldName: 'ENDE_DATUM' },
 ], RH);
-y -= 4;
+y -= 10;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TABLE 5 — MESSLOKATIONEN  (2 rows: header + body text)
@@ -353,14 +346,14 @@ y -= 4;
   const t2 = 'Bitte beachten Sie bei der Angabe der Messprodukte, die vom MSB auf seiner Internetseite' +
              ' aufgelisteten Angebote.';
   const lh = SZ * 1.35;
-  const pad = 5;
+  const pad = SZ + 4;   // top pad must exceed ascender height so text clears the header border
   const maxW = TW - 7;
   const l1 = wrapLines(t1, maxW, SZ, font);
   const l2 = wrapLines(t2, maxW, SZ, font);
   const bodyH = pad + (l1.length + l2.length) * lh + lh * 0.6 + pad; // gap between paragraphs
 
+  need(HDR + bodyH);
   hdr('Angaben zu den Messlokationen');
-  need(bodyH);
   box(TX, y - bodyH, TW, bodyH, WHITE, BORDER);
   let by = y - pad;
   for (const l of l1) { txt(l, TX + 3.5, by, SZ); by -= lh; }
@@ -368,7 +361,7 @@ y -= 4;
   for (const l of l2) { txt(l, TX + 3.5, by, SZ); by -= lh; }
   y -= bodyH;
 }
-y -= 4;
+y -= 16;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // FREE PARAGRAPH — between tables 5 and 6
@@ -383,12 +376,13 @@ y -= 4;
   const lines = wrapLines(para, W - ML - ML, SZ, font);
   need(lines.length * lh + 10);
   for (const l of lines) { txt(l, ML, y, SZ); y -= lh; }
-  y -= 6;
+  y -= 12;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TABLE 6 — MESSPRODUKTEN  (header + 2 col-header rows + 10 data rows)
 // ══════════════════════════════════════════════════════════════════════════════
+need(HDR + 2 * HINT + 10 * RH + 20); // keep full table together; forces page 2 if needed
 hdr('Angaben zu den Messprodukten');
 // Column header row 1
 drawRow([
@@ -431,11 +425,11 @@ y -= 8;
   const l2 = wrapLines(c2, conW - 10, SZ, font);
   const conH = padV + (l1.length + l2.length) * lh + lh * 0.6 + padV;
   need(conH);
-  box(ML, y - conH, conW, conH, DARK);
+  box(ML, y - conH, conW, conH, WHITE);
   let cy = y - padV;
-  for (const l of l1) { txt(l, ML + 6, cy, SZ, font, WHITE); cy -= lh; }
+  for (const l of l1) { txt(l, ML + 6, cy, SZ, font, BLACK); cy -= lh; }
   cy -= lh * 0.4;
-  for (const l of l2) { txt(l, ML + 6, cy, SZ, font, WHITE); cy -= lh; }
+  for (const l of l2) { txt(l, ML + 6, cy, SZ, font, BLACK); cy -= lh; }
   y -= conH;
 }
 y -= 8;
@@ -470,18 +464,14 @@ y -= 8;
     y -= 5;
   }
 }
-y -= 6;
+y -= 28;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // SIGNATURE LINES
 // ══════════════════════════════════════════════════════════════════════════════
-need(90);
-// 4 blank signature lines (bottom-bordered)
-for (let i = 0; i < 4; i++) {
-  page.drawLine({ start: { x: ML, y }, end: { x: W - ML, y }, thickness: 0.5, color: BORDER });
-  y -= 20;
-}
-y -= 4;
+need(40);
+page.drawLine({ start: { x: ML, y }, end: { x: W - ML, y }, thickness: 0.5, color: BORDER });
+y -= 22;
 txt('Ort, Datum, Unterschrift Anschlussnutzer', ML, y, SZ, font, MUTED);
 y -= 20;
 
@@ -504,7 +494,7 @@ y -= 20;
   const lh  = SZ * 1.35;
   const maxW = W - ML - ML - 14;
 
-  need(120);
+  while (doc.getPageCount() < 3) newPage();
   txt('Ausfüllhinweise', ML, y, SZ, bold);
   txt(': ', ML + bold.widthOfTextAtSize('Ausfüllhinweise', SZ), y, SZ, font);
   y -= SZ * 1.5;
