@@ -53,6 +53,7 @@ input.invalid, textarea.invalid, select.invalid { border-color: var(--danger); }
 .helper { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .radios { display: flex; gap: 16px; }
 .radios label { font-weight: 400; margin-top: 0; }
+.checkbox-row { display: flex; align-items: center; gap: 6px; font-weight: 400; margin-top: 10px; cursor: pointer; }
 table.mp { width: 100%; max-width: 720px; border-collapse: collapse; margin-top: 12px; }
 table.mp th, table.mp td { padding: 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
 .chip { display: inline-block; padding: 3px 8px; background: #eee; border-radius: 10px; font-size: 12px; }

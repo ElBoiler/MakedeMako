@@ -27,6 +27,11 @@ export function renderStep1(state, errors, onChange) {
     acField({ id: 'anschlussnutzer.name', label: 'Anschlussnutzer (Name)',
               value: state.anschlussnutzer.name, error: errors['anschlussnutzer.name'] }),
 
+    el('label', { class: 'checkbox-row' },
+      el('input', { type: 'checkbox', id: 'anschlussnutzer.sameAsObjekt' }),
+      ' Gleiche Adresse wie Objekt',
+    ),
+
     addressBlock({
       prefix: 'anschlussnutzer',
       label:  'Anschlussnutzer (Adresse)',
@@ -77,6 +82,14 @@ export function wireStep1(root, onChange, signal) {
     const t = e.target;
     if (t.type === 'radio' && t.name === 'msb.knownToAdvizeo') {
       onChange('msb.knownToAdvizeo', t.value === 'true');
+    }
+    if (t.id === 'anschlussnutzer.sameAsObjekt' && t.checked) {
+      const strasse = root.querySelector('#objekt\\.strasse')?.value ?? '';
+      const plz     = root.querySelector('#objekt\\.plz')?.value     ?? '';
+      const ort     = root.querySelector('#objekt\\.ort')?.value     ?? '';
+      _setField(root, 'anschlussnutzer.strasse', strasse, onChange);
+      _setField(root, 'anschlussnutzer.plz',     plz,     onChange);
+      _setField(root, 'anschlussnutzer.ort',     ort,     onChange);
     }
   }, { signal });
 
